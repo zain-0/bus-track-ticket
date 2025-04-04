@@ -1,480 +1,557 @@
 
-import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
-import { useTickets } from "@/contexts/TicketContext";
-import MainLayout from "@/components/MainLayout";
-import { TicketStatusBadge } from "@/components/TicketStatusBadge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
-import { format } from "date-fns";
-import { CheckCheck, FileText, Clock, Bus, Calendar, DollarSign, ArrowLeft, Send, WrenchIcon } from "lucide-react";
+import React, { useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useTickets } from '@/contexts/TicketContext';
+import MainLayout from '@/components/MainLayout';
+import { TicketStatusBadge } from '@/components/TicketStatusBadge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { toast } from 'sonner';
+import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const VendorTicketDetail = () => {
   const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
-  const { getTicketById, acknowledgeTicket, submitInvoice, requestRepair } = useTickets();
   const navigate = useNavigate();
+  const { getTicketById, acknowledgeTicket, submitInvoice, requestRepair, requestRepairWithInvoice } = useTickets();
   
-  const [invoiceAmount, setInvoiceAmount] = useState("");
-  const [invoiceDescription, setInvoiceDescription] = useState("");
-  const [repairDescription, setRepairDescription] = useState("");
-  const [repairCost, setRepairCost] = useState("");
+  const [activeTab, setActiveTab] = useState('details');
+  const [note, setNote] = useState('');
+  const [submitCombined, setSubmitCombined] = useState(false);
   
-  const ticket = getTicketById(id || "");
+  // Get ticket details
+  const ticket = id ? getTicketById(id) : undefined;
   
   if (!ticket) {
     return (
       <MainLayout>
-        <div className="py-10 text-center">
-          <p>Ticket not found.</p>
-          <Button onClick={() => navigate(-1)} variant="link">
-            Go back
-          </Button>
+        <div className="py-6">
+          <h1 className="text-3xl font-bold tracking-tight">Ticket not found</h1>
+          <Button onClick={() => navigate('/vendor/tickets')} className="mt-4">Back to Tickets</Button>
         </div>
       </MainLayout>
     );
   }
   
+  // Form schema for repair request
+  const repairSchema = z.object({
+    description: z.string().min(10, { message: "Description must be at least 10 characters" }),
+    estimatedCost: z.coerce.number().min(1, { message: "Cost must be greater than 0" }),
+  });
+  
+  const repairForm = useForm<z.infer<typeof repairSchema>>({
+    resolver: zodResolver(repairSchema),
+    defaultValues: {
+      description: "",
+      estimatedCost: 0,
+    },
+  });
+  
+  // Form schema for invoice
+  const invoiceSchema = z.object({
+    amount: z.coerce.number().min(1, { message: "Amount must be greater than 0" }),
+    description: z.string().min(10, { message: "Description must be at least 10 characters" }),
+  });
+  
+  const invoiceForm = useForm<z.infer<typeof invoiceSchema>>({
+    resolver: zodResolver(invoiceSchema),
+    defaultValues: {
+      amount: ticket.estimatedCost || 0,
+      description: "",
+    },
+  });
+  
+  // Handle ticket acknowledgment
   const handleAcknowledge = () => {
     if (id) {
       acknowledgeTicket(id);
     }
   };
   
-  const handleSubmitInvoice = () => {
-    if (id && invoiceAmount && invoiceDescription) {
-      submitInvoice(id, {
-        amount: parseFloat(invoiceAmount),
-        description: invoiceDescription,
-      });
-      setInvoiceAmount("");
-      setInvoiceDescription("");
+  // Handle invoice submission
+  const onInvoiceSubmit = (data: z.infer<typeof invoiceSchema>) => {
+    if (id) {
+      if (submitCombined) {
+        const repairData = repairForm.getValues();
+        requestRepairWithInvoice(
+          id, 
+          { 
+            description: repairData.description, 
+            estimatedCost: repairData.estimatedCost 
+          }, 
+          data
+        );
+      } else {
+        submitInvoice(id, {
+          amount: data.amount,
+          description: data.description,
+        });
+      }
+      setActiveTab('details');
     }
   };
   
-  const handleRequestRepair = () => {
-    if (id && repairDescription && repairCost) {
-      requestRepair(id, {
-        description: repairDescription,
-        estimatedCost: parseFloat(repairCost),
-      });
-      setRepairDescription("");
-      setRepairCost("");
+  // Handle repair request
+  const onRepairSubmit = (data: z.infer<typeof repairSchema>) => {
+    if (id) {
+      if (submitCombined) {
+        const invoiceData = invoiceForm.getValues();
+        requestRepairWithInvoice(
+          id, 
+          data, 
+          { 
+            amount: invoiceData.amount, 
+            description: invoiceData.description
+          }
+        );
+      } else {
+        requestRepair(id, {
+          description: data.description,
+          estimatedCost: data.estimatedCost,
+        });
+      }
+      setActiveTab('details');
     }
   };
   
-  const canAcknowledge = ticket.status === "approved" && user?.role === "vendor";
-  const canInvoice = ticket.status === "acknowledged" && user?.role === "vendor";
-  const canRequestRepair = ticket.status === "acknowledged" && user?.role === "vendor";
+  // Determine what actions are available based on ticket status
+  const canAcknowledge = ticket.status === 'approved';
+  const canSubmitInvoice = ticket.status === 'acknowledged' || ticket.status === 'repair_requested';
+  const canRequestRepair = ticket.status === 'acknowledged';
   
   return (
     <MainLayout>
-      <div className="space-y-6 py-6">
+      <div className="py-6 space-y-6">
         <div className="flex items-center justify-between">
-          <Button variant="ghost" onClick={() => navigate(-1)} className="flex items-center gap-1">
-            <ArrowLeft className="h-4 w-4" />
-            <span>Back to Tickets</span>
-          </Button>
-          <TicketStatusBadge status={ticket.status} />
-        </div>
-        
-        <div className="flex flex-col md:flex-row gap-6">
-          <div className="flex-1 space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-2xl">{ticket.title}</CardTitle>
-                <div className="text-sm text-muted-foreground">
-                  Ticket ID: {ticket.id}
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-2">
-                  <Label>Description</Label>
-                  <p className="text-sm">{ticket.description}</p>
-                </div>
-                <Separator />
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center">
-                      <Bus className="h-4 w-4 mr-2 text-muted-foreground" />
-                      <Label>Bus Details</Label>
-                    </div>
-                    <div className="rounded-md bg-slate-50 p-3 text-sm">
-                      <p><span className="font-medium">Number:</span> {ticket.bus.busNumber}</p>
-                      <p><span className="font-medium">Route:</span> {ticket.bus.route}</p>
-                      <p><span className="font-medium">Model:</span> {ticket.bus.model}</p>
-                      <p><span className="font-medium">Year:</span> {ticket.bus.year}</p>
-                      <p><span className="font-medium">Issue:</span> {ticket.bus.issue}</p>
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center">
-                      <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
-                      <Label>Timeline</Label>
-                    </div>
-                    <div className="rounded-md bg-slate-50 p-3 text-sm">
-                      <p>
-                        <span className="font-medium">Created:</span>{" "}
-                        {format(ticket.createdAt, "PPp")}
-                      </p>
-                      {ticket.approvedAt && (
-                        <p>
-                          <span className="font-medium">Approved:</span>{" "}
-                          {format(ticket.approvedAt, "PPp")}
-                        </p>
-                      )}
-                      {ticket.acknowledgedAt && (
-                        <p>
-                          <span className="font-medium">Acknowledged:</span>{" "}
-                          {format(ticket.acknowledgedAt, "PPp")}
-                        </p>
-                      )}
-                      {ticket.completedAt && (
-                        <p>
-                          <span className="font-medium">Completed:</span>{" "}
-                          {format(ticket.completedAt, "PPp")}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                
-                {ticket.estimatedCost && (
-                  <div className="flex items-center gap-2 rounded-md bg-blue-50 p-3 text-sm">
-                    <DollarSign className="h-4 w-4 text-blue-600" />
-                    <div>
-                      <span className="font-medium">Estimated Cost:</span>{" "}
-                      ${ticket.estimatedCost.toFixed(2)}
-                    </div>
-                  </div>
-                )}
-                
-                {ticket.finalCost && (
-                  <div className="flex items-center gap-2 rounded-md bg-green-50 p-3 text-sm">
-                    <DollarSign className="h-4 w-4 text-green-600" />
-                    <div>
-                      <span className="font-medium">Final Cost:</span>{" "}
-                      ${ticket.finalCost.toFixed(2)}
-                    </div>
-                  </div>
-                )}
-                
-                {ticket.notes && ticket.notes.length > 0 && (
-                  <>
-                    <Separator />
-                    <div className="space-y-1">
-                      <Label>Notes</Label>
-                      <ul className="list-disc list-inside text-sm pl-2 space-y-1">
-                        {ticket.notes.map((note, index) => (
-                          <li key={index}>{note}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  </>
-                )}
-              </CardContent>
-              <CardFooter className="flex gap-3 flex-wrap">
-                {canAcknowledge && (
-                  <Button 
-                    onClick={handleAcknowledge} 
-                    className="flex items-center gap-1"
-                  >
-                    <CheckCheck className="h-4 w-4 mr-2" />
-                    Acknowledge Ticket
-                  </Button>
-                )}
-                
-                {canInvoice && (
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button className="flex items-center gap-1">
-                        <FileText className="h-4 w-4 mr-2" />
-                        Submit Invoice
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-[425px]">
-                      <DialogHeader>
-                        <DialogTitle>Submit Invoice</DialogTitle>
-                        <DialogDescription>
-                          Enter the invoice details for this service ticket.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="grid gap-4 py-4">
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="amount" className="text-right">
-                            Amount ($)
-                          </Label>
-                          <Input
-                            id="amount"
-                            type="number"
-                            step="0.01"
-                            value={invoiceAmount}
-                            onChange={(e) => setInvoiceAmount(e.target.value)}
-                            placeholder="0.00"
-                            className="col-span-3"
-                          />
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="description" className="text-right">
-                            Description
-                          </Label>
-                          <Textarea
-                            id="description"
-                            value={invoiceDescription}
-                            onChange={(e) => setInvoiceDescription(e.target.value)}
-                            placeholder="Describe the services performed"
-                            className="col-span-3"
-                          />
-                        </div>
-                      </div>
-                      <DialogFooter>
-                        <Button 
-                          type="submit" 
-                          onClick={handleSubmitInvoice}
-                          disabled={!invoiceAmount || !invoiceDescription}
-                        >
-                          Submit Invoice
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-                )}
-                
-                {canRequestRepair && (
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button variant="secondary" className="flex items-center gap-1">
-                        <WrenchIcon className="h-4 w-4 mr-2" />
-                        Request Repair
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-[425px]">
-                      <DialogHeader>
-                        <DialogTitle>Request Additional Repair</DialogTitle>
-                        <DialogDescription>
-                          Submit a request for additional repairs not covered by the original ticket.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="grid gap-4 py-4">
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="repair-description" className="text-right">
-                            Description
-                          </Label>
-                          <Textarea
-                            id="repair-description"
-                            value={repairDescription}
-                            onChange={(e) => setRepairDescription(e.target.value)}
-                            placeholder="Describe the additional repairs needed"
-                            className="col-span-3"
-                          />
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="cost" className="text-right">
-                            Est. Cost ($)
-                          </Label>
-                          <Input
-                            id="cost"
-                            type="number"
-                            step="0.01"
-                            value={repairCost}
-                            onChange={(e) => setRepairCost(e.target.value)}
-                            placeholder="0.00"
-                            className="col-span-3"
-                          />
-                        </div>
-                      </div>
-                      <DialogFooter>
-                        <Button 
-                          type="submit" 
-                          onClick={handleRequestRepair}
-                          disabled={!repairDescription || !repairCost}
-                        >
-                          Submit Request
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-                )}
-              </CardFooter>
-            </Card>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">{ticket.title}</h1>
+            <div className="flex items-center gap-4 mt-2">
+              <TicketStatusBadge status={ticket.status} />
+              <span className="text-sm text-muted-foreground">
+                Ticket #{ticket.id}
+              </span>
+              <span className="text-sm text-muted-foreground">
+                Created on {ticket.createdAt.toLocaleDateString()}
+              </span>
+            </div>
           </div>
           
-          <div className="md:w-80 space-y-6">
-            {ticket.invoice && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Invoice</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="font-medium">Amount:</span>
-                    <span>${ticket.invoice.amount.toFixed(2)}</span>
-                  </div>
-                  <div>
-                    <span className="font-medium">Description:</span>
-                    <p className="text-sm mt-1">{ticket.invoice.description}</p>
-                  </div>
-                  <div>
-                    <span className="font-medium">Date:</span>
-                    <p className="text-sm">{format(ticket.invoice.createdAt, "PPp")}</p>
-                  </div>
-                  {ticket.invoice.paidAt && (
-                    <div className="bg-green-50 p-2 rounded flex items-center gap-2">
-                      <CheckCheck className="h-4 w-4 text-green-600" />
-                      <div>
-                        <div className="text-xs">Paid on</div>
-                        <div className="text-sm font-medium">
-                          {format(ticket.invoice.paidAt, "PPp")}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+          <div className="space-x-2">
+            {canAcknowledge && (
+              <Button onClick={handleAcknowledge}>
+                Acknowledge Ticket
+              </Button>
             )}
+            <Button variant="outline" onClick={() => navigate('/vendor/tickets')}>
+              Back to Tickets
+            </Button>
+          </div>
+        </div>
+        
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="details">Ticket Details</TabsTrigger>
+            {canSubmitInvoice && <TabsTrigger value="invoice">Submit Invoice</TabsTrigger>}
+            {canRequestRepair && <TabsTrigger value="repair">Request Repair</TabsTrigger>}
+            <TabsTrigger value="history">History</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="details" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Bus Information</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium">Bus Number</p>
+                    <p className="text-lg">{ticket.bus.busNumber}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Model</p>
+                    <p className="text-lg">{ticket.bus.model}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Year</p>
+                    <p className="text-lg">{ticket.bus.year}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Issue</p>
+                    <p className="text-lg">{ticket.bus.issue}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader>
+                <CardTitle>Ticket Details</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-sm font-medium">Description</p>
+                    <p className="mt-1">{ticket.description}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Service Type</p>
+                    <p className="capitalize">{ticket.serviceType}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Priority</p>
+                    <p className="capitalize">{ticket.priority}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Estimated Cost</p>
+                    <p>${ticket.estimatedCost?.toFixed(2) || "Not specified"}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
             
             {ticket.repairRequests && ticket.repairRequests.length > 0 && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Repair Requests</CardTitle>
+                  <CardTitle>Repair Requests</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {ticket.repairRequests.map((repair) => (
-                    <div 
-                      key={repair.id} 
-                      className={`p-3 rounded-md border ${
-                        repair.approved ? "bg-green-50 border-green-200" : "bg-amber-50 border-amber-200"
-                      }`}
-                    >
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="font-medium text-sm">Request {repair.id}</span>
-                        {repair.approved ? (
-                          <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full font-medium">
-                            Approved
-                          </span>
-                        ) : (
-                          <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full font-medium">
-                            Pending
-                          </span>
-                        )}
+                    <div key={repair.id} className="p-4 border rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium">Request #{repair.id}</h4>
+                        <span className={repair.approved ? "text-green-600" : "text-amber-600"}>
+                          {repair.approved ? "Approved" : "Pending Approval"}
+                        </span>
                       </div>
-                      <p className="text-sm mb-2">{repair.description}</p>
-                      <div className="flex justify-between text-sm">
-                        <span>Est. Cost:</span>
-                        <span className="font-medium">${repair.estimatedCost.toFixed(2)}</span>
-                      </div>
-                      {repair.approvedBy && (
-                        <div className="text-xs mt-2 text-muted-foreground">
-                          Approved by {repair.approvedBy}
-                        </div>
-                      )}
+                      <p className="mt-2">{repair.description}</p>
+                      <p className="mt-1 text-sm">Estimated cost: ${repair.estimatedCost.toFixed(2)}</p>
                     </div>
                   ))}
                 </CardContent>
               </Card>
             )}
             
+            {ticket.invoice && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Invoice Information</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-sm font-medium">Invoice #{ticket.invoice.id}</p>
+                      <p className="mt-1">Amount: ${ticket.invoice.amount.toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Description</p>
+                      <p className="mt-1">{ticket.invoice.description}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Submitted On</p>
+                      <p className="mt-1">{ticket.invoice.createdAt.toLocaleDateString()}</p>
+                    </div>
+                    {ticket.invoice.paidAt && (
+                      <div>
+                        <p className="text-sm font-medium">Paid On</p>
+                        <p className="mt-1">{ticket.invoice.paidAt.toLocaleDateString()}</p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+          
+          {canSubmitInvoice && (
+            <TabsContent value="invoice">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Submit Invoice</CardTitle>
+                  <CardDescription>
+                    Enter the invoice details for the completed work
+                  </CardDescription>
+                </CardHeader>
+                <Form {...invoiceForm}>
+                  <form onSubmit={invoiceForm.handleSubmit(onInvoiceSubmit)}>
+                    <CardContent className="space-y-4">
+                      <FormField
+                        control={invoiceForm.control}
+                        name="amount"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Amount ($)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                placeholder="0.00"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      
+                      <FormField
+                        control={invoiceForm.control}
+                        name="description"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Description</FormLabel>
+                            <FormControl>
+                              <Textarea
+                                placeholder="Describe the work completed"
+                                rows={4}
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      
+                      {canRequestRepair && (
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="request-repair-too"
+                            checked={submitCombined}
+                            onCheckedChange={(checked) => {
+                              setSubmitCombined(checked === true);
+                              if (checked) {
+                                setActiveTab('repair');
+                              }
+                            }}
+                          />
+                          <Label htmlFor="request-repair-too">
+                            I also need to request additional repairs
+                          </Label>
+                        </div>
+                      )}
+                    </CardContent>
+                    <CardFooter className="flex justify-between">
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        onClick={() => setActiveTab('details')}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit">
+                        Submit Invoice
+                      </Button>
+                    </CardFooter>
+                  </form>
+                </Form>
+              </Card>
+            </TabsContent>
+          )}
+          
+          {canRequestRepair && (
+            <TabsContent value="repair">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Request Additional Repair</CardTitle>
+                  <CardDescription>
+                    Submit a request for additional repairs that require approval
+                  </CardDescription>
+                </CardHeader>
+                <Form {...repairForm}>
+                  <form onSubmit={repairForm.handleSubmit(onRepairSubmit)}>
+                    <CardContent className="space-y-4">
+                      <FormField
+                        control={repairForm.control}
+                        name="description"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Repair Description</FormLabel>
+                            <FormControl>
+                              <Textarea
+                                placeholder="Describe the needed repairs"
+                                rows={4}
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      
+                      <FormField
+                        control={repairForm.control}
+                        name="estimatedCost"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Estimated Cost ($)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                placeholder="0.00"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      
+                      {canSubmitInvoice && (
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="submit-invoice-too"
+                            checked={submitCombined}
+                            onCheckedChange={(checked) => {
+                              setSubmitCombined(checked === true);
+                              if (checked) {
+                                setActiveTab('invoice');
+                              }
+                            }}
+                          />
+                          <Label htmlFor="submit-invoice-too">
+                            I also want to submit an invoice for completed work
+                          </Label>
+                        </div>
+                      )}
+                    </CardContent>
+                    <CardFooter className="flex justify-between">
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        onClick={() => setActiveTab('details')}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit">
+                        Submit Request
+                      </Button>
+                    </CardFooter>
+                  </form>
+                </Form>
+              </Card>
+            </TabsContent>
+          )}
+          
+          <TabsContent value="history" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Ticket Status</CardTitle>
+                <CardTitle>Ticket Timeline</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="h-6 w-6 rounded-full bg-green-100 flex items-center justify-center">
-                    <Check isActive={true} />
-                  </div>
-                  <div>
-                    <p className="font-medium text-sm">Created</p>
-                    <p className="text-xs text-muted-foreground">
-                      {format(ticket.createdAt, "PPp")}
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-3">
-                  <div className={`h-6 w-6 rounded-full ${ticket.approvedAt ? "bg-green-100" : "bg-muted"} flex items-center justify-center`}>
-                    <Check isActive={!!ticket.approvedAt} />
-                  </div>
-                  <div>
-                    <p className="font-medium text-sm">Approved</p>
-                    {ticket.approvedAt ? (
-                      <p className="text-xs text-muted-foreground">
-                        {format(ticket.approvedAt, "PPp")}
+              <CardContent className="space-y-4">
+                <div className="space-y-4">
+                  <div className="flex items-start">
+                    <div className="mr-4 flex flex-col items-center">
+                      <div className="h-2 w-2 rounded-full bg-primary"></div>
+                      <div className="h-full w-px bg-border"></div>
+                    </div>
+                    <div>
+                      <p className="font-medium">Ticket Created</p>
+                      <p className="text-sm text-muted-foreground">
+                        {ticket.createdAt.toLocaleString()}
                       </p>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">Pending</p>
-                    )}
+                      <p className="text-sm">Created by {ticket.createdBy}</p>
+                    </div>
                   </div>
-                </div>
-                
-                <div className="flex items-center gap-3">
-                  <div className={`h-6 w-6 rounded-full ${ticket.acknowledgedAt ? "bg-green-100" : "bg-muted"} flex items-center justify-center`}>
-                    <Check isActive={!!ticket.acknowledgedAt} />
-                  </div>
-                  <div>
-                    <p className="font-medium text-sm">Acknowledged</p>
-                    {ticket.acknowledgedAt ? (
-                      <p className="text-xs text-muted-foreground">
-                        {format(ticket.acknowledgedAt, "PPp")}
-                      </p>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">Pending</p>
-                    )}
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-3">
-                  <div className={`h-6 w-6 rounded-full ${ticket.invoice ? "bg-green-100" : "bg-muted"} flex items-center justify-center`}>
-                    <Check isActive={!!ticket.invoice} />
-                  </div>
-                  <div>
-                    <p className="font-medium text-sm">Invoiced</p>
-                    {ticket.invoice ? (
-                      <p className="text-xs text-muted-foreground">
-                        {format(ticket.invoice.createdAt, "PPp")}
-                      </p>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">Pending</p>
-                    )}
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-3">
-                  <div className={`h-6 w-6 rounded-full ${ticket.completedAt ? "bg-green-100" : "bg-muted"} flex items-center justify-center`}>
-                    <Check isActive={!!ticket.completedAt} />
-                  </div>
-                  <div>
-                    <p className="font-medium text-sm">Completed</p>
-                    {ticket.completedAt ? (
-                      <p className="text-xs text-muted-foreground">
-                        {format(ticket.completedAt, "PPp")}
-                      </p>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">Pending</p>
-                    )}
-                  </div>
+                  
+                  {ticket.approvedAt && (
+                    <div className="flex items-start">
+                      <div className="mr-4 flex flex-col items-center">
+                        <div className="h-2 w-2 rounded-full bg-primary"></div>
+                        <div className="h-full w-px bg-border"></div>
+                      </div>
+                      <div>
+                        <p className="font-medium">Ticket Approved</p>
+                        <p className="text-sm text-muted-foreground">
+                          {ticket.approvedAt.toLocaleString()}
+                        </p>
+                        <p className="text-sm">Approved by {ticket.approvedBy}</p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {ticket.acknowledgedAt && (
+                    <div className="flex items-start">
+                      <div className="mr-4 flex flex-col items-center">
+                        <div className="h-2 w-2 rounded-full bg-primary"></div>
+                        <div className="h-full w-px bg-border"></div>
+                      </div>
+                      <div>
+                        <p className="font-medium">Ticket Acknowledged</p>
+                        <p className="text-sm text-muted-foreground">
+                          {ticket.acknowledgedAt.toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {ticket.repairRequests && ticket.repairRequests.map((repair) => (
+                    <div key={repair.id} className="flex items-start">
+                      <div className="mr-4 flex flex-col items-center">
+                        <div className="h-2 w-2 rounded-full bg-primary"></div>
+                        <div className="h-full w-px bg-border"></div>
+                      </div>
+                      <div>
+                        <p className="font-medium">Repair Request #{repair.id} Submitted</p>
+                        {repair.approved && (
+                          <>
+                            <p className="text-sm text-muted-foreground">
+                              Approved on {repair.approvedAt?.toLocaleString()}
+                            </p>
+                            <p className="text-sm">Approved by {repair.approvedBy}</p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {ticket.invoice && (
+                    <div className="flex items-start">
+                      <div className="mr-4 flex flex-col items-center">
+                        <div className="h-2 w-2 rounded-full bg-primary"></div>
+                        <div className="h-full w-px bg-border"></div>
+                      </div>
+                      <div>
+                        <p className="font-medium">Invoice #{ticket.invoice.id} Submitted</p>
+                        <p className="text-sm text-muted-foreground">
+                          {ticket.invoice.createdAt.toLocaleString()}
+                        </p>
+                        {ticket.invoice.paidAt && (
+                          <p className="text-sm">
+                            Paid on {ticket.invoice.paidAt.toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {ticket.completedAt && (
+                    <div className="flex items-start">
+                      <div className="mr-4 flex flex-col items-center">
+                        <div className="h-2 w-2 rounded-full bg-primary"></div>
+                      </div>
+                      <div>
+                        <p className="font-medium">Ticket Completed</p>
+                        <p className="text-sm text-muted-foreground">
+                          {ticket.completedAt.toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
-          </div>
-        </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </MainLayout>
-  );
-};
-
-// Small check component for status timeline
-const Check = ({ isActive }: { isActive: boolean }) => {
-  return isActive ? (
-    <CheckCheck className="h-3 w-3 text-green-600" />
-  ) : (
-    <Clock className="h-3 w-3 text-muted-foreground" />
   );
 };
 

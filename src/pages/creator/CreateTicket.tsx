@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -27,6 +28,7 @@ import {
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { ServiceType } from "@/types/ticket";
+import { Check, Wrench } from "lucide-react";
 
 const CreateTicket = () => {
   const { user, vendors, addVendor } = useAuth();
@@ -41,7 +43,6 @@ const CreateTicket = () => {
   const [fleetNumber, setFleetNumber] = useState("");
   const [chassisNumber, setChassisNumber] = useState("");
   const [registrationNumber, setRegistrationNumber] = useState("");
-  const [route, setRoute] = useState("");
   const [model, setModel] = useState("");
   const [year, setYear] = useState("");
   const [issue, setIssue] = useState("");
@@ -55,6 +56,10 @@ const CreateTicket = () => {
   const [newVendorPhone, setNewVendorPhone] = useState("");
   
   const busPresets = getBusPresets();
+
+  // Determine if description and issue fields should be displayed
+  const shouldShowDescription = serviceType === 'repair' || serviceType === 'other';
+  const shouldShowIssue = serviceType === 'repair' || serviceType === 'other';
   
   const handleBusSelect = (selectedBusNumber: string) => {
     const busPreset = busPresets.find(bus => bus.busNumber === selectedBusNumber);
@@ -104,14 +109,26 @@ const CreateTicket = () => {
       return;
     }
     
-    if (!title || !description || !busNumber || !route || !model || !year || !issue || !vendor || !serviceType) {
+    // Conditional validation based on service type
+    if (!title || !busNumber || !model || !year || !vendor || !serviceType) {
       toast.error("Please fill out all required fields");
+      return;
+    }
+    
+    // Validate description and issue for repair and other service types
+    if (shouldShowDescription && !description) {
+      toast.error("Please provide a description for repair or other service types");
+      return;
+    }
+    
+    if (shouldShowIssue && !issue) {
+      toast.error("Please provide issue details for repair or other service types");
       return;
     }
     
     const newTicket = {
       title,
-      description,
+      description: shouldShowDescription ? description : `${serviceType} service for bus ${busNumber}`,
       priority,
       serviceType,
       createdBy: user.email,
@@ -121,10 +138,10 @@ const CreateTicket = () => {
         fleetNumber,
         chassisNumber,
         registrationNumber,
-        route,
+        route: "", // Empty string as route is no longer needed
         model,
         year,
-        issue,
+        issue: shouldShowIssue ? issue : `${serviceType} service`,
       },
       estimatedCost: estimatedCost ? parseFloat(estimatedCost) : undefined,
     };
@@ -195,17 +212,19 @@ const CreateTicket = () => {
                   </Select>
                 </div>
                 
-                <div className="space-y-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    placeholder="Detailed description of the problem or service needed"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    rows={4}
-                    required
-                  />
-                </div>
+                {shouldShowDescription && (
+                  <div className="space-y-2">
+                    <Label htmlFor="description">Description</Label>
+                    <Textarea
+                      id="description"
+                      placeholder="Detailed description of the problem or service needed"
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      rows={4}
+                      required
+                    />
+                  </div>
+                )}
               </div>
               
               <div className="pt-4 border-t">
@@ -277,16 +296,6 @@ const CreateTicket = () => {
                   
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="route">Route</Label>
-                      <Input
-                        id="route"
-                        placeholder="Bus route"
-                        value={route}
-                        onChange={(e) => setRoute(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
                       <Label htmlFor="estimated-cost">Estimated Cost ($)</Label>
                       <Input
                         id="estimated-cost"
@@ -297,9 +306,6 @@ const CreateTicket = () => {
                         onChange={(e) => setEstimatedCost(e.target.value)}
                       />
                     </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="model">Bus Model</Label>
                       <Input
@@ -310,6 +316,9 @@ const CreateTicket = () => {
                         required
                       />
                     </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="year">Year</Label>
                       <Input
@@ -320,17 +329,18 @@ const CreateTicket = () => {
                         required
                       />
                     </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="issue">Issue Description</Label>
-                    <Input
-                      id="issue"
-                      placeholder="Specific issue with the bus"
-                      value={issue}
-                      onChange={(e) => setIssue(e.target.value)}
-                      required
-                    />
+                    {shouldShowIssue && (
+                      <div className="space-y-2">
+                        <Label htmlFor="issue">Issue Description</Label>
+                        <Input
+                          id="issue"
+                          placeholder="Specific issue with the bus"
+                          value={issue}
+                          onChange={(e) => setIssue(e.target.value)}
+                          required
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

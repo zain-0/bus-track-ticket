@@ -204,6 +204,7 @@ interface TicketContextType {
   acknowledgeTicket: (ticketId: string) => void;
   submitInvoice: (ticketId: string, invoice: Omit<Invoice, 'id' | 'createdAt'>) => void;
   requestRepair: (ticketId: string, repairRequest: Omit<RepairRequest, 'id' | 'approved'>) => void;
+  requestRepairWithInvoice: (ticketId: string, repairRequest: Omit<RepairRequest, 'id' | 'approved'>, invoice: Omit<Invoice, 'id' | 'createdAt'>) => void;
   approveRepair: (ticketId: string, repairId: string) => void;
   completeTicket: (ticketId: string) => void;
   getTicketById: (id: string) => Ticket | undefined;
@@ -223,6 +224,7 @@ const TicketContext = createContext<TicketContextType>({
   acknowledgeTicket: () => {},
   submitInvoice: () => {},
   requestRepair: () => {},
+  requestRepairWithInvoice: () => {},
   approveRepair: () => {},
   completeTicket: () => {},
   getTicketById: () => undefined,
@@ -435,6 +437,54 @@ export const TicketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  // Add a new function to request repair and submit invoice simultaneously
+  const requestRepairWithInvoice = (
+    ticketId: string, 
+    repairRequest: Omit<RepairRequest, 'id' | 'approved'>,
+    invoice: Omit<Invoice, 'id' | 'createdAt'>
+  ) => {
+    if (!user || user.role !== 'vendor') {
+      toast.error('Only vendors can request repairs and submit invoices');
+      return;
+    }
+
+    const newRepairRequest: RepairRequest = {
+      ...repairRequest,
+      id: `R${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`,
+      approved: false
+    };
+
+    const newInvoice: Invoice = {
+      ...invoice,
+      id: `INV${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`,
+      createdAt: new Date()
+    };
+
+    setTickets((prev) =>
+      prev.map((ticket) => {
+        if (ticket.id === ticketId) {
+          const currentRepairRequests = ticket.repairRequests || [];
+          return {
+            ...ticket,
+            status: 'repair_requested',
+            repairRequests: [...currentRepairRequests, newRepairRequest],
+            invoice: newInvoice,
+            finalCost: invoice.amount
+          };
+        }
+        return ticket;
+      })
+    );
+    toast.success('Repair request and invoice submitted successfully');
+    
+    // Notification for repair request and invoice
+    const ticketWithRepairRequest = tickets.find(t => t.id === ticketId);
+    if (ticketWithRepairRequest && ticketWithRepairRequest.approvedBy) {
+      toast.info(`Notification sent to supervisor: ${ticketWithRepairRequest.approvedBy}`);
+      toast.info(`Notification sent to purchase department`);
+    }
+  };
+
   // Approve repair (supervisor only)
   const approveRepair = (ticketId: string, repairId: string) => {
     if (!user || user.role !== 'supervisor') {
@@ -555,6 +605,7 @@ export const TicketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     acknowledgeTicket,
     submitInvoice,
     requestRepair,
+    requestRepairWithInvoice,
     approveRepair,
     completeTicket,
     getTicketById,
