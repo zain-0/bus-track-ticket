@@ -28,7 +28,7 @@ import {
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { ServiceType, RepairCategory } from "@/types/ticket";
-import { Check, Wrench, Engine, Tire, Thermometer, Transmission, Disc } from "lucide-react";
+import { Check, Wrench } from "lucide-react";
 
 const CreateTicket = () => {
   const { user, vendors, addVendor } = useAuth();
@@ -437,7 +437,7 @@ const CreateTicket = () => {
                     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
                       <div className="space-y-2">
                         <Label htmlFor="engine-service" className="flex items-center gap-1">
-                          <Engine className="h-4 w-4" /> Engine
+                          <Wrench className="h-4 w-4" /> Engine
                         </Label>
                         <Input
                           id="engine-service"
@@ -449,7 +449,7 @@ const CreateTicket = () => {
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="tyre-service" className="flex items-center gap-1">
-                          <Tire className="h-4 w-4" /> Tyre
+                          <Wrench className="h-4 w-4" /> Tyre
                         </Label>
                         <Input
                           id="tyre-service"
@@ -461,7 +461,7 @@ const CreateTicket = () => {
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="ac-service" className="flex items-center gap-1">
-                          <Thermometer className="h-4 w-4" /> AC
+                          <Wrench className="h-4 w-4" /> AC
                         </Label>
                         <Input
                           id="ac-service"
@@ -473,7 +473,7 @@ const CreateTicket = () => {
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="transmission-service" className="flex items-center gap-1">
-                          <Transmission className="h-4 w-4" /> Transmission
+                          <Wrench className="h-4 w-4" /> Transmission
                         </Label>
                         <Input
                           id="transmission-service"
@@ -485,7 +485,7 @@ const CreateTicket = () => {
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="brakepad-service" className="flex items-center gap-1">
-                          <Disc className="h-4 w-4" /> Brake Pad
+                          <Wrench className="h-4 w-4" /> Brake Pad
                         </Label>
                         <Input
                           id="brakepad-service"
