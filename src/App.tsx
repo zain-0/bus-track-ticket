@@ -23,6 +23,8 @@ import VendorTicketDetail from "./pages/vendor/VendorTicketDetail";
 import CreateTicket from "./pages/creator/CreateTicket";
 import CreatorTickets from "./pages/creator/CreatorTickets";
 import CreatorTicketDetail from "./pages/creator/CreatorTicketDetail";
+import AddVendor from "./pages/creator/AddVendor";
+import AddBus from "./pages/creator/AddBus";
 
 // Supervisor pages
 import SupervisorApprovals from "./pages/supervisor/SupervisorApprovals";
@@ -82,6 +84,16 @@ const App = () => (
               <Route path="/creator/tickets/:id" element={
                 <AuthRequired allowedRoles={["creator"]}>
                   <CreatorTicketDetail />
+                </AuthRequired>
+              } />
+              <Route path="/creator/add-vendor" element={
+                <AuthRequired allowedRoles={["creator"]}>
+                  <AddVendor />
+                </AuthRequired>
+              } />
+              <Route path="/creator/add-bus" element={
+                <AuthRequired allowedRoles={["creator"]}>
+                  <AddBus />
                 </AuthRequired>
               } />
               
