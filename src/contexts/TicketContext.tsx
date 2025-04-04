@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'sonner';
@@ -5,6 +6,8 @@ import {
   NewTicket,
   Ticket,
   BusPreset,
+  RepairRequest,
+  Invoice,
 } from '@/types/ticket';
 
 // Mock data for demonstration
@@ -37,27 +40,22 @@ const MOCK_TICKETS: Ticket[] = [
       transmissionServiceInterval: 15000,
       brakePadServiceInterval: 7000,
     },
-    quotation: {
+    quotations: [
+      {
+        vendorId: 'v1',
+        price: 250,
+        description: 'Front tyres replacement and labour',
+        status: 'approved'
+      }
+    ],
+    approvedQuotation: {
       vendorId: 'v1',
-      items: [
-        { description: 'Front tyres replacement', cost: 200 },
-        { description: 'Labour', cost: 50 },
-      ],
-      totalCost: 250,
-      status: 'approved',
+      price: 250,
+      description: 'Front tyres replacement and labour',
+      status: 'approved'
     },
-    approval: {
-      approvedBy: 'supervisor@example.com',
-      approvedAt: new Date(),
-    },
-    purchaseOrder: {
-      orderNumber: 'PO123',
-      orderedAt: new Date(),
-    },
-    payment: {
-      paymentId: 'PAY123',
-      paidAt: new Date(),
-    },
+    estimatedCost: 250,
+    finalCost: 250,
   },
   {
     id: '2',
@@ -86,15 +84,15 @@ const MOCK_TICKETS: Ticket[] = [
       transmissionServiceInterval: 15000,
       brakePadServiceInterval: 7000,
     },
-    quotation: {
-      vendorId: 'v2',
-      items: [
-        { description: 'Engine maintenance', cost: 300 },
-        { description: 'Labour', cost: 75 },
-      ],
-      totalCost: 375,
-      status: 'pending',
-    },
+    quotations: [
+      {
+        vendorId: 'v2',
+        price: 375,
+        description: 'Engine maintenance and labour',
+        status: 'pending'
+      }
+    ],
+    estimatedCost: 375,
   },
   {
     id: '3',
@@ -178,8 +176,18 @@ interface TicketContextType {
   addTicket: (ticket: NewTicket) => Ticket;
   updateTicket: (id: string, updates: Partial<Ticket>) => void;
   getTicket: (id: string) => Ticket | undefined;
+  getTicketById: (id: string) => Ticket | undefined;
   getBusPresets: () => BusPreset[];
   addBusPreset: (bus: BusPreset) => boolean;
+  getRelevantTickets: () => Ticket[];
+  approveTicket: (id: string) => void;
+  rejectTicket: (id: string) => void;
+  acknowledgeTicket: (id: string) => void;
+  submitInvoice: (id: string, invoice: Omit<Invoice, 'id'>) => void;
+  completeTicket: (id: string) => void;
+  requestRepair: (id: string, repair: Omit<RepairRequest, 'id' | 'approved' | 'createdAt'>) => void;
+  approveRepair: (ticketId: string, repairId: string) => void;
+  requestRepairWithInvoice: (id: string, repair: Omit<RepairRequest, 'id' | 'approved' | 'createdAt'>, invoice: Omit<Invoice, 'id'>) => void;
 }
 
 // Create ticket context
@@ -194,9 +202,39 @@ const TicketContext = createContext<TicketContextType>({
   getTicket: () => {
     throw new Error('getTicket not implemented');
   },
+  getTicketById: () => {
+    throw new Error('getTicketById not implemented');
+  },
   getBusPresets: () => BUS_PRESETS,
   addBusPreset: () => {
     throw new Error('addBusPreset not implemented');
+  },
+  getRelevantTickets: () => {
+    throw new Error('getRelevantTickets not implemented');
+  },
+  approveTicket: () => {
+    throw new Error('approveTicket not implemented');
+  },
+  rejectTicket: () => {
+    throw new Error('rejectTicket not implemented');
+  },
+  acknowledgeTicket: () => {
+    throw new Error('acknowledgeTicket not implemented');
+  },
+  submitInvoice: () => {
+    throw new Error('submitInvoice not implemented');
+  },
+  completeTicket: () => {
+    throw new Error('completeTicket not implemented');
+  },
+  requestRepair: () => {
+    throw new Error('requestRepair not implemented');
+  },
+  approveRepair: () => {
+    throw new Error('approveRepair not implemented');
+  },
+  requestRepairWithInvoice: () => {
+    throw new Error('requestRepairWithInvoice not implemented');
   },
 });
 
@@ -236,6 +274,9 @@ export const TicketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return tickets.find((ticket) => ticket.id === id);
   };
 
+  // Alias for getTicket
+  const getTicketById = getTicket;
+
   const getBusPresets = () => BUS_PRESETS;
 
   // Add a function to add a bus preset
@@ -257,14 +298,149 @@ export const TicketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return false;
     }
   };
+  
+  // Get relevant tickets based on user role
+  const getRelevantTickets = () => {
+    // This is a stub - in a real app, this would filter based on the user's role
+    return tickets;
+  };
+
+  // Approve a ticket
+  const approveTicket = (id: string) => {
+    updateTicket(id, { 
+      status: 'approved', 
+      approvedAt: new Date() 
+    });
+    toast.success(`Ticket "${id}" approved successfully`);
+  };
+
+  // Reject a ticket
+  const rejectTicket = (id: string) => {
+    updateTicket(id, { status: 'rejected' });
+    toast.error(`Ticket "${id}" rejected`);
+  };
+
+  // Acknowledge a ticket
+  const acknowledgeTicket = (id: string) => {
+    updateTicket(id, { 
+      status: 'acknowledged', 
+      acknowledgedAt: new Date() 
+    });
+    toast.success(`Ticket "${id}" acknowledged successfully`);
+  };
+
+  // Submit invoice for a ticket
+  const submitInvoice = (id: string, invoiceData: Omit<Invoice, 'id'>) => {
+    const invoice = {
+      ...invoiceData,
+      id: uuidv4()
+    };
+    updateTicket(id, { 
+      status: 'invoiced', 
+      invoice,
+      finalCost: invoiceData.amount
+    });
+    toast.success(`Invoice submitted for ticket "${id}"`);
+  };
+
+  // Complete a ticket
+  const completeTicket = (id: string) => {
+    updateTicket(id, { 
+      status: 'completed', 
+      completedAt: new Date()
+    });
+    toast.success(`Ticket "${id}" completed`);
+  };
+
+  // Request additional repair
+  const requestRepair = (id: string, repairData: Omit<RepairRequest, 'id' | 'approved' | 'createdAt'>) => {
+    const ticket = getTicket(id);
+    if (!ticket) return;
+    
+    const repair: RepairRequest = {
+      ...repairData,
+      id: uuidv4(),
+      approved: false,
+      createdAt: new Date()
+    };
+    
+    const repairRequests = ticket.repairRequests ? [...ticket.repairRequests, repair] : [repair];
+    updateTicket(id, { 
+      status: 'repair_requested',
+      repairRequests
+    });
+    toast.success(`Repair request submitted for ticket "${id}"`);
+  };
+
+  // Approve a repair request
+  const approveRepair = (ticketId: string, repairId: string) => {
+    const ticket = getTicket(ticketId);
+    if (!ticket || !ticket.repairRequests) return;
+    
+    const updatedRepairs = ticket.repairRequests.map(repair => 
+      repair.id === repairId ? { ...repair, approved: true } : repair
+    );
+    
+    updateTicket(ticketId, { 
+      repairRequests: updatedRepairs,
+      status: 'approved'
+    });
+    toast.success(`Repair request approved for ticket "${ticketId}"`);
+  };
+
+  // Request repair with invoice
+  const requestRepairWithInvoice = (
+    id: string, 
+    repairData: Omit<RepairRequest, 'id' | 'approved' | 'createdAt'>,
+    invoiceData: Omit<Invoice, 'id'>
+  ) => {
+    const ticket = getTicket(id);
+    if (!ticket) return;
+    
+    // Create repair request
+    const repair: RepairRequest = {
+      ...repairData,
+      id: uuidv4(),
+      approved: false,
+      createdAt: new Date()
+    };
+    
+    // Create invoice
+    const invoice: Invoice = {
+      ...invoiceData,
+      id: uuidv4(),
+      createdAt: new Date()
+    };
+    
+    const repairRequests = ticket.repairRequests ? [...ticket.repairRequests, repair] : [repair];
+    
+    updateTicket(id, { 
+      status: 'repair_requested',
+      repairRequests,
+      invoice,
+      finalCost: invoiceData.amount
+    });
+    
+    toast.success(`Repair request and invoice submitted for ticket "${id}"`);
+  };
 
   const value = {
     tickets,
     addTicket,
     updateTicket,
     getTicket,
+    getTicketById,
     getBusPresets,
     addBusPreset,
+    getRelevantTickets,
+    approveTicket,
+    rejectTicket,
+    acknowledgeTicket,
+    submitInvoice,
+    completeTicket,
+    requestRepair,
+    approveRepair,
+    requestRepairWithInvoice,
   };
 
   return <TicketContext.Provider value={value}>{children}</TicketContext.Provider>;
