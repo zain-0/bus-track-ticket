@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -49,7 +48,6 @@ const CreateTicket = () => {
   const [vendor, setVendor] = useState("");
   const [estimatedCost, setEstimatedCost] = useState("");
   
-  // New vendor dialog
   const [showNewVendorDialog, setShowNewVendorDialog] = useState(false);
   const [newVendorName, setNewVendorName] = useState("");
   const [newVendorEmail, setNewVendorEmail] = useState("");
@@ -58,7 +56,6 @@ const CreateTicket = () => {
   
   const busPresets = getBusPresets();
   
-  // Handle bus selection from presets
   const handleBusSelect = (selectedBusNumber: string) => {
     const busPreset = busPresets.find(bus => bus.busNumber === selectedBusNumber);
     if (busPreset) {
@@ -71,7 +68,6 @@ const CreateTicket = () => {
     }
   };
   
-  // Create new vendor
   const handleCreateVendor = () => {
     if (!newVendorName || !newVendorEmail) {
       toast.error("Vendor name and email are required");
@@ -85,17 +81,19 @@ const CreateTicket = () => {
       phone: newVendorPhone
     });
     
-    setVendor(newVendor.email);
-    setShowNewVendorDialog(false);
-    
-    // Reset form
-    setNewVendorName("");
-    setNewVendorEmail("");
-    setNewVendorContact("");
-    setNewVendorPhone("");
+    if (newVendor && newVendor.email) {
+      setVendor(newVendor.email);
+      setShowNewVendorDialog(false);
+      
+      setNewVendorName("");
+      setNewVendorEmail("");
+      setNewVendorContact("");
+      setNewVendorPhone("");
+    } else {
+      toast.error("Failed to create vendor");
+    }
   };
   
-  // Form submission handler
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -104,7 +102,6 @@ const CreateTicket = () => {
       return;
     }
     
-    // Input validation
     if (!title || !description || !busNumber || !route || !model || !year || !issue || !vendor || !serviceType) {
       toast.error("Please fill out all required fields");
       return;

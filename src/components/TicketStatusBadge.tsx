@@ -36,6 +36,10 @@ export function TicketStatusBadge({ status }: TicketStatusBadgeProps) {
       label: "Completed",
       className: "bg-gray-100 text-gray-800 border-gray-300 hover:bg-gray-200",
     },
+    rejected: {
+      label: "Rejected",
+      className: "bg-red-100 text-red-800 border-red-300 hover:bg-red-200",
+    },
   };
 
   const config = statusConfig[status];

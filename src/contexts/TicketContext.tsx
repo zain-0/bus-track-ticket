@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Ticket, TicketStatus, Invoice, RepairRequest, ServiceType } from '@/types/ticket';
 import { useAuth } from './AuthContext';
@@ -33,6 +32,7 @@ const DEMO_TICKETS: Ticket[] = [
     title: 'Brake System Inspection',
     description: 'Regular brake system inspection required',
     status: 'approved',
+    serviceType: 'minor',
     priority: 'medium',
     createdBy: 'creator@example.com',
     createdAt: new Date('2025-03-10T14:45:00'),
@@ -53,6 +53,7 @@ const DEMO_TICKETS: Ticket[] = [
     title: 'Door Mechanism Repair',
     description: 'Front door not closing properly',
     status: 'acknowledged',
+    serviceType: 'repair',
     priority: 'medium',
     createdBy: 'creator@example.com',
     createdAt: new Date('2025-03-05T11:15:00'),
@@ -74,6 +75,7 @@ const DEMO_TICKETS: Ticket[] = [
     title: 'Annual Maintenance',
     description: 'Complete annual maintenance service',
     status: 'invoiced',
+    serviceType: 'major',
     priority: 'low',
     createdBy: 'creator@example.com',
     createdAt: new Date('2025-02-28T09:00:00'),
@@ -102,6 +104,7 @@ const DEMO_TICKETS: Ticket[] = [
     title: 'A/C System Malfunction',
     description: 'Air conditioning not working in passenger area',
     status: 'repair_requested',
+    serviceType: 'repair',
     priority: 'high',
     createdBy: 'creator@example.com',
     createdAt: new Date('2025-03-18T13:20:00'),
@@ -131,6 +134,7 @@ const DEMO_TICKETS: Ticket[] = [
     title: 'Transmission Service',
     description: 'Transmission issues when shifting gears',
     status: 'completed',
+    serviceType: 'repair',
     priority: 'high',
     createdBy: 'creator@example.com',
     createdAt: new Date('2025-02-20T08:30:00'),
