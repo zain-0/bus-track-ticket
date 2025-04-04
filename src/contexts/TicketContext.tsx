@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'sonner';
@@ -181,7 +180,7 @@ interface TicketContextType {
   addBusPreset: (bus: BusPreset) => boolean;
   getRelevantTickets: () => Ticket[];
   approveTicket: (id: string) => void;
-  rejectTicket: (id: string) => void;
+  rejectTicket: (id: string, reason: string) => void;
   acknowledgeTicket: (id: string) => void;
   submitInvoice: (id: string, invoice: Omit<Invoice, 'id'>) => void;
   completeTicket: (id: string) => void;
@@ -263,11 +262,6 @@ export const TicketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (ticket.id === id) {
           const newUpdates = { ...updates };
           
-          // Handle functional updates for specific fields
-          if (typeof updates.notes === 'function') {
-            newUpdates.notes = updates.notes(ticket);
-          }
-          
           return { ...ticket, ...newUpdates, updatedAt: new Date() };
         }
         return ticket;
@@ -327,8 +321,10 @@ export const TicketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const ticket = getTicket(id);
     if (!ticket) return;
     
+    // Create a new array with the rejection reason added
     const updatedNotes = [...(ticket.notes || []), `Rejected: ${reason}`];
     
+    // Update the ticket with the new notes array
     updateTicket(id, { 
       status: 'rejected',
       notes: updatedNotes
