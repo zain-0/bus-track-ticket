@@ -1,373 +1,243 @@
 
 import { useState } from "react";
 import { useTickets } from "@/contexts/TicketContext";
-import { useAuth } from "@/contexts/AuthContext";
 import MainLayout from "@/components/MainLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePicker } from "@/components/ui/date-picker";
-import { Label } from "@/components/ui/label";
-import { format, subMonths } from "date-fns";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { Download, FileText } from "lucide-react";
-import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select";
+import { format, subMonths, isWithinInterval, startOfDay, endOfDay } from "date-fns";
 
 const PurchaseReports = () => {
-  const { tickets, getTicketsByDate, getTicketsByVendor, getTicketsByBus } = useTickets();
-  const { vendors } = useAuth();
+  const { tickets } = useTickets();
+  const [startDate, setStartDate] = useState<Date | undefined>(subMonths(new Date(), 1));
+  const [endDate, setEndDate] = useState<Date | undefined>(new Date());
+  const [reportType, setReportType] = useState("expense-by-vendor");
   
-  const [startDate, setStartDate] = useState<Date>(subMonths(new Date(), 3));
-  const [endDate, setEndDate] = useState<Date>(new Date());
-  const [selectedVendor, setSelectedVendor] = useState<string>("");
-  const [selectedBus, setSelectedBus] = useState<string>("");
-  
-  // Get unique bus numbers for the filter
-  const busNumbers = Array.from(new Set(tickets.map(ticket => ticket.bus.busNumber)));
-  
-  // Get filtered tickets
-  const getFilteredTickets = () => {
-    let filtered = getTicketsByDate(startDate, endDate);
+  const filteredTickets = tickets.filter(ticket => {
+    if (!startDate || !endDate || !ticket.createdAt) return false;
     
-    if (selectedVendor) {
-      filtered = filtered.filter(ticket => ticket.assignedVendor === selectedVendor);
+    const ticketDate = new Date(ticket.createdAt);
+    return isWithinInterval(ticketDate, {
+      start: startOfDay(startDate),
+      end: endOfDay(endDate)
+    });
+  });
+  
+  // Expense by vendor report data
+  const expenseByVendor = filteredTickets.reduce((acc: Record<string, number>, ticket) => {
+    const vendorName = ticket.assignedVendor;
+    const cost = ticket.finalCost || ticket.estimatedCost || 0;
+    
+    if (!acc[vendorName]) {
+      acc[vendorName] = 0;
     }
     
-    if (selectedBus) {
-      filtered = filtered.filter(ticket => ticket.bus.busNumber === selectedBus);
+    acc[vendorName] += cost;
+    return acc;
+  }, {});
+  
+  // Expense by bus report data
+  const expenseByBus = filteredTickets.reduce((acc: Record<string, number>, ticket) => {
+    const busNumber = ticket.bus.busNumber;
+    const cost = ticket.finalCost || ticket.estimatedCost || 0;
+    
+    if (!acc[busNumber]) {
+      acc[busNumber] = 0;
     }
     
-    return filtered;
-  };
+    acc[busNumber] += cost;
+    return acc;
+  }, {});
   
-  const filteredTickets = getFilteredTickets();
-  
-  // Calculate statistics
-  const totalSpent = filteredTickets
-    .filter(ticket => ticket.finalCost !== undefined)
-    .reduce((sum, ticket) => sum + (ticket.finalCost || 0), 0);
+  // Expense by service type report data
+  const expenseByServiceType = filteredTickets.reduce((acc: Record<string, number>, ticket) => {
+    const serviceType = ticket.serviceType || "unspecified";
+    const cost = ticket.finalCost || ticket.estimatedCost || 0;
     
-  const averageCost = filteredTickets.length > 0 && totalSpent > 0 
-    ? totalSpent / filteredTickets.length 
-    : 0;
+    if (!acc[serviceType]) {
+      acc[serviceType] = 0;
+    }
     
-  const completedTickets = filteredTickets.filter(ticket => 
-    ticket.status === 'completed' || ticket.status === 'invoiced'
-  ).length;
+    acc[serviceType] += cost;
+    return acc;
+  }, {});
   
-  const repairedBuses = new Set(
-    filteredTickets
-      .filter(ticket => ticket.status === 'completed' || ticket.status === 'invoiced')
-      .map(ticket => ticket.bus.busNumber)
-  ).size;
-  
-  // Prepare chart data
-  const prepareVendorCostData = () => {
-    const vendorCosts = new Map<string, number>();
-    
-    filteredTickets
-      .filter(ticket => ticket.finalCost !== undefined)
-      .forEach(ticket => {
-        const vendorEmail = ticket.assignedVendor;
-        const vendor = vendors.find(v => v.email === vendorEmail);
-        const vendorName = vendor ? vendor.name : vendorEmail;
-        
-        const currentCost = vendorCosts.get(vendorName) || 0;
-        vendorCosts.set(vendorName, currentCost + (ticket.finalCost || 0));
-      });
+  const renderReport = () => {
+    switch (reportType) {
+      case "expense-by-vendor":
+        return (
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vendor</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Expense</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Percentage</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {Object.entries(expenseByVendor).map(([vendor, amount]) => {
+                const totalExpense = Object.values(expenseByVendor).reduce((sum, val) => sum + val, 0);
+                const percentage = totalExpense > 0 ? ((amount / totalExpense) * 100).toFixed(1) : "0";
+                
+                return (
+                  <tr key={vendor}>
+                    <td className="px-6 py-4 whitespace-nowrap">{vendor}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">${amount.toFixed(2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">{percentage}%</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        );
       
-    return Array.from(vendorCosts.entries()).map(([name, amount]) => ({
-      name,
-      amount
-    }));
-  };
-  
-  const prepareServiceTypeData = () => {
-    const serviceCosts = new Map<string, number>();
-    
-    filteredTickets
-      .filter(ticket => ticket.finalCost !== undefined)
-      .forEach(ticket => {
-        const serviceType = ticket.serviceType || 'unknown';
-        const currentCost = serviceCosts.get(serviceType) || 0;
-        serviceCosts.set(serviceType, currentCost + (ticket.finalCost || 0));
-      });
+      case "expense-by-bus":
+        return (
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bus Number</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Expense</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Percentage</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {Object.entries(expenseByBus).map(([busNumber, amount]) => {
+                const totalExpense = Object.values(expenseByBus).reduce((sum, val) => sum + val, 0);
+                const percentage = totalExpense > 0 ? ((amount / totalExpense) * 100).toFixed(1) : "0";
+                
+                return (
+                  <tr key={busNumber}>
+                    <td className="px-6 py-4 whitespace-nowrap">{busNumber}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">${amount.toFixed(2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">{percentage}%</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        );
       
-    return Array.from(serviceCosts.entries()).map(([type, amount]) => ({
-      name: type.charAt(0).toUpperCase() + type.slice(1), // Capitalize first letter
-      value: amount
-    }));
+      case "expense-by-service-type":
+        return (
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service Type</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Expense</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Percentage</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {Object.entries(expenseByServiceType).map(([serviceType, amount]) => {
+                const totalExpense = Object.values(expenseByServiceType).reduce((sum, val) => sum + val, 0);
+                const percentage = totalExpense > 0 ? ((amount / totalExpense) * 100).toFixed(1) : "0";
+                
+                return (
+                  <tr key={serviceType}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {serviceType === "minor" ? "Minor Service" :
+                       serviceType === "major" ? "Major Service" :
+                       serviceType === "repair" ? "Repair" :
+                       serviceType === "other" ? "Other" : serviceType}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">${amount.toFixed(2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">{percentage}%</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        );
+      
+      default:
+        return <p className="text-center py-10">Select a report type</p>;
+    }
   };
   
-  const vendorCostData = prepareVendorCostData();
-  const serviceTypeData = prepareServiceTypeData();
-  
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
-  
-  // Export report as CSV
-  const exportReport = () => {
-    const headers = ["Ticket ID", "Title", "Bus Number", "Vendor", "Status", "Created Date", "Completed Date", "Final Cost"];
-    
-    const data = filteredTickets.map(ticket => [
-      ticket.id,
-      ticket.title,
-      ticket.bus.busNumber,
-      vendors.find(v => v.email === ticket.assignedVendor)?.name || ticket.assignedVendor,
-      ticket.status,
-      format(ticket.createdAt, "yyyy-MM-dd"),
-      ticket.completedAt ? format(ticket.completedAt, "yyyy-MM-dd") : "",
-      ticket.finalCost ? `$${ticket.finalCost.toFixed(2)}` : ""
-    ]);
-    
-    // Combine headers and data
-    const csvContent = 
-      [headers]
-      .concat(data)
-      .map(row => row.map(cell => `"${cell}"`).join(","))
-      .join("\n");
-    
-    // Create download link
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `ticket_report_${format(new Date(), "yyyy-MM-dd")}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    toast.success("Report downloaded successfully");
-  };
-
   return (
     <MainLayout>
       <div className="space-y-6 py-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight mb-2">Financial Reports</h1>
           <p className="text-muted-foreground">
-            Generate and view reports on maintenance and repair costs.
+            Generate detailed financial reports for bus maintenance and repairs.
           </p>
         </div>
         
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
-          <div className="lg:col-span-2 space-y-6">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle>Report Filters</CardTitle>
-                <CardDescription>
-                  Customize the data included in your reports.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="start-date">Start Date</Label>
-                      <DatePicker 
-                        date={startDate}
-                        setDate={setStartDate} 
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="end-date">End Date</Label>
-                      <DatePicker 
-                        date={endDate}
-                        setDate={setEndDate} 
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="vendor-filter">Filter by Vendor</Label>
-                    <Select value={selectedVendor} onValueChange={setSelectedVendor}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="All vendors" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="">All vendors</SelectItem>
-                        {vendors.map((vendor) => (
-                          <SelectItem key={vendor.id} value={vendor.email}>
-                            {vendor.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="bus-filter">Filter by Bus</Label>
-                    <Select value={selectedBus} onValueChange={setSelectedBus}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="All buses" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="">All buses</SelectItem>
-                        {busNumbers.map((busNumber) => (
-                          <SelectItem key={busNumber} value={busNumber}>
-                            {busNumber}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <Button 
-                    className="w-full mt-2" 
-                    onClick={exportReport}
-                    disabled={filteredTickets.length === 0}
-                  >
-                    <FileText className="mr-2 h-4 w-4" />
-                    Export Report
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Report Parameters</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-6 md:grid-cols-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Start Date
+                </label>
+                <DatePicker date={startDate} setDate={setStartDate} />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  End Date
+                </label>
+                <DatePicker date={endDate} setDate={setEndDate} />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Report Type
+                </label>
+                <Select 
+                  value={reportType} 
+                  onValueChange={setReportType}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select report type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="expense-by-vendor">Expense by Vendor</SelectItem>
+                    <SelectItem value="expense-by-bus">Expense by Bus</SelectItem>
+                    <SelectItem value="expense-by-service-type">Expense by Service Type</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
             
-            <Card>
-              <CardHeader>
-                <CardTitle>Report Summary</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-muted rounded-lg p-3">
-                      <p className="text-muted-foreground text-sm">Total Spent</p>
-                      <p className="text-2xl font-bold">${totalSpent.toFixed(2)}</p>
-                    </div>
-                    <div className="bg-muted rounded-lg p-3">
-                      <p className="text-muted-foreground text-sm">Average Cost</p>
-                      <p className="text-2xl font-bold">${averageCost.toFixed(2)}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-muted rounded-lg p-3">
-                      <p className="text-muted-foreground text-sm">Completed Tickets</p>
-                      <p className="text-2xl font-bold">{completedTickets}</p>
-                    </div>
-                    <div className="bg-muted rounded-lg p-3">
-                      <p className="text-muted-foreground text-sm">Buses Repaired</p>
-                      <p className="text-2xl font-bold">{repairedBuses}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="text-sm text-muted-foreground pt-2">
-                    {filteredTickets.length === 0 ? (
-                      <p>No data available for the selected filters.</p>
-                    ) : (
-                      <p>Showing data for {filteredTickets.length} tickets.</p>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-          
-          <div className="lg:col-span-3">
-            <Tabs defaultValue="vendor" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="vendor">Cost by Vendor</TabsTrigger>
-                <TabsTrigger value="service">Service Types</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="vendor">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Costs by Vendor</CardTitle>
-                    <CardDescription>
-                      Breakdown of expenses by service provider.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {vendorCostData.length > 0 ? (
-                      <div className="h-[400px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart
-                            data={vendorCostData}
-                            margin={{
-                              top: 5,
-                              right: 30,
-                              left: 20,
-                              bottom: 80,
-                            }}
-                          >
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis 
-                              dataKey="name" 
-                              tick={{ fill: '#888' }} 
-                              angle={-45}
-                              textAnchor="end"
-                              height={80}
-                            />
-                            <YAxis tick={{ fill: '#888' }} />
-                            <Tooltip 
-                              formatter={(value) => [`$${Number(value).toFixed(2)}`, 'Amount']} 
-                            />
-                            <Legend />
-                            <Bar dataKey="amount" name="Amount ($)" fill="#0088FE" />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                    ) : (
-                      <div className="text-center py-10">
-                        <p className="text-muted-foreground">No cost data available for the selected filters.</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-              
-              <TabsContent value="service">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Costs by Service Type</CardTitle>
-                    <CardDescription>
-                      Distribution of expenses across service categories.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {serviceTypeData.length > 0 ? (
-                      <div className="h-[400px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={serviceTypeData}
-                              cx="50%"
-                              cy="50%"
-                              labelLine={true}
-                              label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                              outerRadius={150}
-                              fill="#8884d8"
-                              dataKey="value"
-                            >
-                              {serviceTypeData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                              ))}
-                            </Pie>
-                            <Tooltip formatter={(value) => [`$${Number(value).toFixed(2)}`, 'Amount']} />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
-                    ) : (
-                      <div className="text-center py-10">
-                        <p className="text-muted-foreground">No service type data available for the selected filters.</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            </Tabs>
-          </div>
-        </div>
+            <div className="mt-6">
+              <Button>Generate Report</Button>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              {reportType === "expense-by-vendor" && "Expenses by Vendor"}
+              {reportType === "expense-by-bus" && "Expenses by Bus"}
+              {reportType === "expense-by-service-type" && "Expenses by Service Type"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {filteredTickets.length > 0 ? (
+              <div className="overflow-x-auto">
+                {renderReport()}
+              </div>
+            ) : (
+              <div className="text-center py-10">
+                <p>No data available for the selected date range</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </MainLayout>
   );
