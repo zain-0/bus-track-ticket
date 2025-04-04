@@ -11,13 +11,11 @@ import { Search } from "lucide-react";
 
 const VendorTickets = () => {
   const { user } = useAuth();
-  const { tickets } = useTickets();
+  const { getRelevantTickets } = useTickets();
   const [searchQuery, setSearchQuery] = useState("");
   
-  // Filter tickets assigned to the vendor
-  const vendorTickets = tickets.filter(
-    (ticket) => ticket.assignedVendor === user?.email
-  );
+  // Get tickets assigned to the vendor
+  const vendorTickets = getRelevantTickets();
   
   // Filter tickets based on search query
   const filteredTickets = vendorTickets.filter((ticket) => 
@@ -33,7 +31,11 @@ const VendorTickets = () => {
   );
   
   const acknowledgedTickets = filteredTickets.filter(
-    (ticket) => ticket.status === "acknowledged"
+    (ticket) => ticket.status === "acknowledged" || ticket.status === "quoted" || ticket.status === "quote_approved" || ticket.status === "quote_rejected"
+  );
+  
+  const underServiceTickets = filteredTickets.filter(
+    (ticket) => ticket.status === "under_service"
   );
   
   const repairTickets = filteredTickets.filter(
@@ -71,7 +73,10 @@ const VendorTickets = () => {
               New Tickets ({newTickets.length})
             </TabsTrigger>
             <TabsTrigger value="acknowledged">
-              In Progress ({acknowledgedTickets.length})
+              Pending Action ({acknowledgedTickets.length})
+            </TabsTrigger>
+            <TabsTrigger value="under_service">
+              Under Service ({underServiceTickets.length})
             </TabsTrigger>
             <TabsTrigger value="repair">
               Repair Requested ({repairTickets.length})
@@ -96,7 +101,7 @@ const VendorTickets = () => {
               <Card>
                 <CardContent className="py-10 text-center">
                   <p className="text-muted-foreground">
-                    No new tickets requiring your attention.
+                    No new tickets requiring your acknowledgment.
                   </p>
                 </CardContent>
               </Card>
@@ -118,7 +123,29 @@ const VendorTickets = () => {
               <Card>
                 <CardContent className="py-10 text-center">
                   <p className="text-muted-foreground">
-                    No tickets currently in progress.
+                    No tickets currently requiring action.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+          
+          <TabsContent value="under_service">
+            {underServiceTickets.length > 0 ? (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {underServiceTickets.map((ticket) => (
+                  <TicketCard
+                    key={ticket.id}
+                    ticket={ticket}
+                    viewRoute="/vendor/tickets"
+                  />
+                ))}
+              </div>
+            ) : (
+              <Card>
+                <CardContent className="py-10 text-center">
+                  <p className="text-muted-foreground">
+                    No tickets currently under service.
                   </p>
                 </CardContent>
               </Card>

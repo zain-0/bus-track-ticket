@@ -13,13 +13,11 @@ import { Link } from "react-router-dom";
 
 const CreatorTickets = () => {
   const { user } = useAuth();
-  const { tickets } = useTickets();
+  const { getRelevantTickets } = useTickets();
   const [searchQuery, setSearchQuery] = useState("");
   
-  // Filter tickets created by the logged in user
-  const creatorTickets = tickets.filter(
-    (ticket) => ticket.createdBy === user?.email
-  );
+  // Get tickets created by the logged in user
+  const creatorTickets = getRelevantTickets();
   
   // Filter tickets based on search query
   const filteredTickets = creatorTickets.filter((ticket) => 
@@ -31,15 +29,15 @@ const CreatorTickets = () => {
   
   // Categorize tickets by status
   const pendingTickets = filteredTickets.filter(
-    (ticket) => ticket.status === "pending"
+    (ticket) => ticket.status === "pending" || ticket.status === "rejected"
   );
   
-  const inProgressTickets = filteredTickets.filter(
-    (ticket) => ["approved", "acknowledged", "repair_requested", "invoiced"].includes(ticket.status)
+  const ongoingTickets = filteredTickets.filter(
+    (ticket) => ["approved", "acknowledged", "quoted", "quote_approved", "quote_rejected", "under_service", "repair_requested"].includes(ticket.status)
   );
   
   const completedTickets = filteredTickets.filter(
-    (ticket) => ticket.status === "completed"
+    (ticket) => ticket.status === "completed" || ticket.status === "invoiced"
   );
   
   return (
@@ -78,8 +76,8 @@ const CreatorTickets = () => {
             <TabsTrigger value="pending">
               Pending ({pendingTickets.length})
             </TabsTrigger>
-            <TabsTrigger value="in-progress">
-              In Progress ({inProgressTickets.length})
+            <TabsTrigger value="ongoing">
+              Ongoing ({ongoingTickets.length})
             </TabsTrigger>
             <TabsTrigger value="completed">
               Completed ({completedTickets.length})
@@ -133,10 +131,10 @@ const CreatorTickets = () => {
             )}
           </TabsContent>
           
-          <TabsContent value="in-progress">
-            {inProgressTickets.length > 0 ? (
+          <TabsContent value="ongoing">
+            {ongoingTickets.length > 0 ? (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {inProgressTickets.map((ticket) => (
+                {ongoingTickets.map((ticket) => (
                   <TicketCard
                     key={ticket.id}
                     ticket={ticket}
@@ -148,7 +146,7 @@ const CreatorTickets = () => {
               <Card>
                 <CardContent className="py-10 text-center">
                   <p className="text-muted-foreground">
-                    No in-progress tickets to display.
+                    No ongoing tickets to display.
                   </p>
                 </CardContent>
               </Card>

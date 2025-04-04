@@ -2,11 +2,15 @@
 export type TicketStatus = 
   | 'pending' // Newly created, waiting for supervisor approval
   | 'approved' // Approved by supervisor, waiting for vendor acknowledgment
-  | 'acknowledged' // Acknowledged by vendor, work in progress
-  | 'invoiced' // Vendor has sent an invoice
-  | 'repair_requested' // Vendor has requested additional repair approval
-  | 'rejected' // Rejected by supervisor, back to creator
+  | 'acknowledged' // Acknowledged by vendor, waiting for quotation
+  | 'quoted' // Vendor has sent a quotation, waiting for supervisor approval
+  | 'quote_rejected' // Quotation rejected by supervisor, back to vendor
+  | 'quote_approved' // Quotation approved by supervisor
+  | 'under_service' // Service in progress by vendor
   | 'completed' // All work done, ticket closed
+  | 'rejected' // Initial ticket rejected by supervisor, back to creator
+  | 'repair_requested' // Vendor has requested additional repair approval
+  | 'invoiced'; // Vendor has sent an invoice
 
 export type ServiceType = 'minor' | 'major' | 'other' | 'repair';
 
@@ -40,6 +44,18 @@ export interface Invoice {
   fileUpload?: File | null;
 }
 
+export interface Quotation {
+  id: string;
+  amount: number;
+  description: string;
+  createdAt: Date;
+  approved?: boolean;
+  approvedBy?: string;
+  approvedAt?: Date;
+  rejectedAt?: Date;
+  rejectionReason?: string;
+}
+
 export interface Ticket {
   id: string;
   title: string;
@@ -55,12 +71,14 @@ export interface Ticket {
   acknowledgedAt?: Date;
   bus: BusDetails;
   invoice?: Invoice;
+  quotation?: Quotation;
   repairRequests?: RepairRequest[];
   notes?: string[];
   completedAt?: Date;
   estimatedCost?: number;
   finalCost?: number;
   rejectedReason?: string;
+  underServiceAt?: Date;
 }
 
 export interface BusPreset {

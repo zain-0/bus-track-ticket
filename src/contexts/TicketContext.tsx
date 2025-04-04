@@ -1,5 +1,6 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Ticket, TicketStatus, Invoice, RepairRequest, ServiceType } from '@/types/ticket';
+import { Ticket, TicketStatus, Invoice, RepairRequest, ServiceType, Quotation } from '@/types/ticket';
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
 
@@ -202,6 +203,10 @@ interface TicketContextType {
   approveTicket: (ticketId: string) => void;
   rejectTicket: (ticketId: string, reason: string) => void;
   acknowledgeTicket: (ticketId: string) => void;
+  submitQuotation: (ticketId: string, quotation: Omit<Quotation, 'id' | 'createdAt'>) => void;
+  approveQuotation: (ticketId: string) => void;
+  rejectQuotation: (ticketId: string, reason: string) => void;
+  startService: (ticketId: string) => void;
   submitInvoice: (ticketId: string, invoice: Omit<Invoice, 'id' | 'createdAt'>) => void;
   requestRepair: (ticketId: string, repairRequest: Omit<RepairRequest, 'id' | 'approved'>) => void;
   requestRepairWithInvoice: (ticketId: string, repairRequest: Omit<RepairRequest, 'id' | 'approved'>, invoice: Omit<Invoice, 'id' | 'createdAt'>) => void;
@@ -213,6 +218,7 @@ interface TicketContextType {
   getTicketsByVendor: (vendorEmail: string) => Ticket[];
   getTicketsByBus: (busNumber: string) => Ticket[];
   getBusPresets: () => typeof BUS_PRESETS;
+  getRelevantTickets: () => Ticket[];
 }
 
 const TicketContext = createContext<TicketContextType>({
@@ -222,6 +228,10 @@ const TicketContext = createContext<TicketContextType>({
   approveTicket: () => {},
   rejectTicket: () => {},
   acknowledgeTicket: () => {},
+  submitQuotation: () => {},
+  approveQuotation: () => {},
+  rejectQuotation: () => {},
+  startService: () => {},
   submitInvoice: () => {},
   requestRepair: () => {},
   requestRepairWithInvoice: () => {},
@@ -233,6 +243,7 @@ const TicketContext = createContext<TicketContextType>({
   getTicketsByVendor: () => [],
   getTicketsByBus: () => [],
   getBusPresets: () => BUS_PRESETS,
+  getRelevantTickets: () => [],
 });
 
 export const TicketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -265,6 +276,37 @@ export const TicketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       localStorage.setItem('busSystemTickets', JSON.stringify(tickets));
     }
   }, [tickets]);
+
+  // Get tickets relevant to the current user role
+  const getRelevantTickets = () => {
+    if (!user) return [];
+    
+    switch (user.role) {
+      case 'vendor':
+        // Vendor can only see tickets assigned to them that have been approved or later stages
+        return tickets.filter(ticket => 
+          ticket.assignedVendor === user.email && 
+          ['approved', 'acknowledged', 'quoted', 'quote_approved', 'quote_rejected', 'under_service', 'completed', 'invoiced', 'repair_requested'].includes(ticket.status)
+        );
+      case 'creator':
+        // Creator can see all the tickets they created
+        // For display purposes, we'll highlight ongoing tickets
+        return tickets.filter(ticket => 
+          ticket.createdBy === user.email
+        );
+      case 'supervisor':
+        // Supervisor can see all tickets that need approval or are in progress
+        return tickets;
+      case 'purchase':
+        // Purchase can see tickets with invoice or completed
+        return tickets.filter(ticket => 
+          ticket.status === 'invoiced' || 
+          ticket.status === 'completed'
+        );
+      default:
+        return [];
+    }
+  };
 
   // Add a new ticket
   const addTicket = (ticket: Omit<Ticket, 'id' | 'createdAt' | 'status'>) => {
@@ -344,7 +386,7 @@ export const TicketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     setTickets((prev) =>
       prev.map((ticket) =>
-        ticket.id === ticketId
+        ticket.id === ticketId && ticket.assignedVendor === user.email
           ? {
               ...ticket,
               status: 'acknowledged',
@@ -359,11 +401,134 @@ export const TicketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const acknowledgedTicket = tickets.find(t => t.id === ticketId);
     if (acknowledgedTicket) {
       // In a real app, this would send actual notifications
-      // Here we're just showing toast messages for demo
       toast.info(`Notification sent to ticket creator: ${acknowledgedTicket.createdBy}`);
       if (acknowledgedTicket.approvedBy) {
         toast.info(`Notification sent to supervisor: ${acknowledgedTicket.approvedBy}`);
       }
+    }
+  };
+
+  // Submit quotation (vendor only)
+  const submitQuotation = (ticketId: string, quotation: Omit<Quotation, 'id' | 'createdAt'>) => {
+    if (!user || user.role !== 'vendor') {
+      toast.error('Only vendors can submit quotations');
+      return;
+    }
+
+    const newQuotation: Quotation = {
+      ...quotation,
+      id: `Q${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`,
+      createdAt: new Date()
+    };
+
+    setTickets((prev) =>
+      prev.map((ticket) =>
+        ticket.id === ticketId && ticket.assignedVendor === user.email
+          ? {
+              ...ticket,
+              status: 'quoted',
+              quotation: newQuotation
+            }
+          : ticket
+      )
+    );
+    toast.success('Quotation submitted successfully');
+    
+    // Notification for quotation submission
+    const ticketWithQuotation = tickets.find(t => t.id === ticketId);
+    if (ticketWithQuotation && ticketWithQuotation.approvedBy) {
+      toast.info(`Notification sent to supervisor: ${ticketWithQuotation.approvedBy}`);
+    }
+  };
+
+  // Approve quotation (supervisor only)
+  const approveQuotation = (ticketId: string) => {
+    if (!user || user.role !== 'supervisor') {
+      toast.error('Only supervisors can approve quotations');
+      return;
+    }
+
+    setTickets((prev) =>
+      prev.map((ticket) => {
+        if (ticket.id === ticketId && ticket.quotation) {
+          return {
+            ...ticket,
+            status: 'quote_approved',
+            quotation: {
+              ...ticket.quotation,
+              approved: true,
+              approvedBy: user.email,
+              approvedAt: new Date()
+            }
+          };
+        }
+        return ticket;
+      })
+    );
+    toast.success('Quotation approved successfully');
+    
+    const ticketWithApprovedQuotation = tickets.find(t => t.id === ticketId);
+    if (ticketWithApprovedQuotation) {
+      toast.info(`Notification sent to vendor: ${ticketWithApprovedQuotation.assignedVendor}`);
+    }
+  };
+
+  // Reject quotation (supervisor only)
+  const rejectQuotation = (ticketId: string, reason: string) => {
+    if (!user || user.role !== 'supervisor') {
+      toast.error('Only supervisors can reject quotations');
+      return;
+    }
+
+    setTickets((prev) =>
+      prev.map((ticket) => {
+        if (ticket.id === ticketId && ticket.quotation) {
+          return {
+            ...ticket,
+            status: 'quote_rejected',
+            quotation: {
+              ...ticket.quotation,
+              approved: false,
+              rejectedAt: new Date(),
+              rejectionReason: reason
+            }
+          };
+        }
+        return ticket;
+      })
+    );
+    toast.warning('Quotation rejected');
+    
+    const ticketWithRejectedQuotation = tickets.find(t => t.id === ticketId);
+    if (ticketWithRejectedQuotation) {
+      toast.info(`Notification sent to vendor: ${ticketWithRejectedQuotation.assignedVendor}`);
+    }
+  };
+
+  // Start service (vendor only)
+  const startService = (ticketId: string) => {
+    if (!user || user.role !== 'vendor') {
+      toast.error('Only vendors can start service');
+      return;
+    }
+
+    setTickets((prev) =>
+      prev.map((ticket) => {
+        if (ticket.id === ticketId && ticket.assignedVendor === user.email && ticket.status === 'quote_approved') {
+          return {
+            ...ticket,
+            status: 'under_service',
+            underServiceAt: new Date()
+          };
+        }
+        return ticket;
+      })
+    );
+    toast.success('Service started');
+    
+    const ticketUnderService = tickets.find(t => t.id === ticketId);
+    if (ticketUnderService) {
+      toast.info(`Notification sent to ticket creator: ${ticketUnderService.createdBy}`);
     }
   };
 
@@ -382,7 +547,7 @@ export const TicketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     setTickets((prev) =>
       prev.map((ticket) =>
-        ticket.id === ticketId
+        ticket.id === ticketId && ticket.assignedVendor === user.email
           ? {
               ...ticket,
               status: 'invoiced',
@@ -417,7 +582,7 @@ export const TicketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     setTickets((prev) =>
       prev.map((ticket) => {
-        if (ticket.id === ticketId) {
+        if (ticket.id === ticketId && ticket.assignedVendor === user.email) {
           const currentRepairRequests = ticket.repairRequests || [];
           return {
             ...ticket,
@@ -462,7 +627,7 @@ export const TicketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     setTickets((prev) =>
       prev.map((ticket) => {
-        if (ticket.id === ticketId) {
+        if (ticket.id === ticketId && ticket.assignedVendor === user.email) {
           const currentRepairRequests = ticket.repairRequests || [];
           return {
             ...ticket,
@@ -603,6 +768,10 @@ export const TicketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     approveTicket,
     rejectTicket,
     acknowledgeTicket,
+    submitQuotation,
+    approveQuotation,
+    rejectQuotation,
+    startService,
     submitInvoice,
     requestRepair,
     requestRepairWithInvoice,
@@ -613,7 +782,8 @@ export const TicketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     getTicketsByDate,
     getTicketsByVendor,
     getTicketsByBus,
-    getBusPresets
+    getBusPresets,
+    getRelevantTickets
   };
 
   return <TicketContext.Provider value={value}>{children}</TicketContext.Provider>;

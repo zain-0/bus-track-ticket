@@ -17,12 +17,28 @@ export function TicketStatusBadge({ status }: TicketStatusBadgeProps) {
       className: "bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200",
     },
     approved: {
-      label: "Approved",
+      label: "Needs Acknowledgment",
       className: "bg-green-100 text-green-800 border-green-300 hover:bg-green-200",
     },
     acknowledged: {
       label: "Acknowledged",
       className: "bg-blue-100 text-blue-700 border-blue-300 hover:bg-blue-200",
+    },
+    quoted: {
+      label: "Quotation Submitted",
+      className: "bg-blue-100 text-blue-700 border-blue-300 hover:bg-blue-200",
+    },
+    quote_approved: {
+      label: "Quote Approved",
+      className: "bg-green-100 text-green-800 border-green-300 hover:bg-green-200",
+    },
+    quote_rejected: {
+      label: "Quote Rejected",
+      className: "bg-red-100 text-red-800 border-red-300 hover:bg-red-200",
+    },
+    under_service: {
+      label: "Under Service",
+      className: "bg-indigo-100 text-indigo-800 border-indigo-300 hover:bg-indigo-200",
     },
     invoiced: {
       label: "Invoiced",
