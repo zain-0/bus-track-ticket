@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -82,10 +81,8 @@ const CreateTicket = () => {
       phone: newVendorPhone
     };
     
-    // Fix: Call addVendor and store the result
     const newVendor = addVendor(vendorData);
     
-    // Check if newVendor exists and has an email property
     if (newVendor && typeof newVendor === 'object' && 'email' in newVendor) {
       setVendor(newVendor.email);
       setShowNewVendorDialog(false);

@@ -30,7 +30,7 @@ interface AuthContextType {
   logout: () => void;
   isAuthenticated: boolean;
   vendors: Vendor[];
-  addVendor: (vendor: Omit<Vendor, 'id'>) => void;
+  addVendor: (vendor: Omit<Vendor, 'id'>) => Vendor; // Updated return type
 }
 
 // Create auth context with default values
@@ -41,7 +41,11 @@ const AuthContext = createContext<AuthContextType>({
   logout: () => {},
   isAuthenticated: false,
   vendors: [],
-  addVendor: () => {},
+  addVendor: () => {
+    throw new Error('addVendor not implemented');
+    // Need to return a value here to satisfy TS, but this will never be called
+    return {} as Vendor; 
+  },
 });
 
 // Mock users for demo
@@ -115,8 +119,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(false);
   }, []);
 
-  // Add vendor function
-  const addVendor = (vendor: Omit<Vendor, 'id'>) => {
+  // Add vendor function - updated to explicitly return the new vendor
+  const addVendor = (vendor: Omit<Vendor, 'id'>): Vendor => {
     const newVendor: Vendor = {
       ...vendor,
       id: `v${vendors.length + 1}`,
