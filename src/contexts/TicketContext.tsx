@@ -309,14 +309,18 @@ export const TicketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const approveTicket = (id: string) => {
     updateTicket(id, { 
       status: 'approved', 
-      approvedAt: new Date() 
+      approvedAt: new Date(),
+      approvedBy: "Supervisor" // Simplified - in a real app would use the current user
     });
     toast.success(`Ticket "${id}" approved successfully`);
   };
 
   // Reject a ticket
-  const rejectTicket = (id: string) => {
-    updateTicket(id, { status: 'rejected' });
+  const rejectTicket = (id: string, reason: string) => {
+    updateTicket(id, { 
+      status: 'rejected',
+      notes: ticket => [...(ticket.notes || []), `Rejected: ${reason}`]
+    });
     toast.error(`Ticket "${id}" rejected`);
   };
 

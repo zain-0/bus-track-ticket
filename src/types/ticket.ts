@@ -87,6 +87,7 @@ export interface RepairRequest {
   estimatedCost: number;
   approved: boolean;
   approvedBy?: string;
+  approvedAt?: Date;
   createdAt: Date;
 }
 
@@ -103,6 +104,7 @@ export interface Ticket {
   createdAt: Date;
   updatedAt: Date;
   approvedAt?: Date;
+  approvedBy?: string;
   acknowledgedAt?: Date;
   completedAt?: Date;
   repairCategory?: RepairCategory;
