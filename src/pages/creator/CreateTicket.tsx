@@ -27,8 +27,8 @@ import {
 } from "@/components/ui/dialog";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { ServiceType } from "@/types/ticket";
-import { Check, Wrench } from "lucide-react";
+import { ServiceType, RepairCategory } from "@/types/ticket";
+import { Check, Wrench, AlertTriangle } from "lucide-react";
 
 const CreateTicket = () => {
   const { user, vendors, addVendor } = useAuth();
@@ -39,15 +39,38 @@ const CreateTicket = () => {
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<"low" | "medium" | "high">("medium");
   const [serviceType, setServiceType] = useState<ServiceType>("minor");
+  const [repairCategory, setRepairCategory] = useState<RepairCategory | "">("");
   const [busNumber, setBusNumber] = useState("");
   const [fleetNumber, setFleetNumber] = useState("");
   const [chassisNumber, setChassisNumber] = useState("");
   const [registrationNumber, setRegistrationNumber] = useState("");
   const [model, setModel] = useState("");
+  const [manufacturer, setManufacturer] = useState("");
   const [year, setYear] = useState("");
   const [issue, setIssue] = useState("");
   const [vendor, setVendor] = useState("");
   const [estimatedCost, setEstimatedCost] = useState("");
+  
+  // Form validation states
+  const [formErrors, setFormErrors] = useState<{
+    title?: string;
+    description?: string;
+    serviceType?: string;
+    repairCategory?: string;
+    busNumber?: string;
+    model?: string;
+    manufacturer?: string;
+    year?: string;
+    issue?: string;
+    vendor?: string;
+  }>({});
+  
+  // Service interval fields
+  const [engineServiceInterval, setEngineServiceInterval] = useState<number>(0);
+  const [tyreServiceInterval, setTyreServiceInterval] = useState<number>(0);
+  const [acServiceInterval, setAcServiceInterval] = useState<number>(0);
+  const [transmissionServiceInterval, setTransmissionServiceInterval] = useState<number>(0);
+  const [brakePadServiceInterval, setBrakePadServiceInterval] = useState<number>(0);
   
   const [showNewVendorDialog, setShowNewVendorDialog] = useState(false);
   const [newVendorName, setNewVendorName] = useState("");
@@ -60,6 +83,15 @@ const CreateTicket = () => {
   // Determine if description and issue fields should be displayed
   const shouldShowDescription = serviceType === 'repair' || serviceType === 'other';
   const shouldShowIssue = serviceType === 'repair' || serviceType === 'other';
+  const shouldShowRepairCategory = serviceType === 'repair';
+  const allowManualVendorSelection = 
+    serviceType === 'repair' && 
+    (repairCategory === 'battery_replacement' || repairCategory === 'tyre_replacement');
+  
+  // Reset errors when changing service type
+  useEffect(() => {
+    setFormErrors({});
+  }, [serviceType]);
   
   const handleBusSelect = (selectedBusNumber: string) => {
     const busPreset = busPresets.find(bus => bus.busNumber === selectedBusNumber);
@@ -69,9 +101,39 @@ const CreateTicket = () => {
       setChassisNumber(busPreset.chassisNumber);
       setRegistrationNumber(busPreset.registrationNumber);
       setModel(busPreset.model);
+      setManufacturer(busPreset.manufacturer);
       setYear(busPreset.year);
+      setEngineServiceInterval(busPreset.engineServiceInterval);
+      setTyreServiceInterval(busPreset.tyreServiceInterval);
+      setAcServiceInterval(busPreset.acServiceInterval);
+      setTransmissionServiceInterval(busPreset.transmissionServiceInterval);
+      setBrakePadServiceInterval(busPreset.brakePadServiceInterval);
+      
+      // Auto-select vendor based on manufacturer if applicable
+      if (!allowManualVendorSelection && busPreset.manufacturer) {
+        const manufacturerVendor = vendors.find(v => 
+          v.name.toLowerCase().includes(busPreset.manufacturer.toLowerCase())
+        );
+        
+        if (manufacturerVendor) {
+          setVendor(manufacturerVendor.email);
+        }
+      }
     }
   };
+  
+  useEffect(() => {
+    // Reset vendor if manual selection becomes allowed/disallowed
+    if (!allowManualVendorSelection && manufacturer) {
+      const manufacturerVendor = vendors.find(v => 
+        v.name.toLowerCase().includes(manufacturer.toLowerCase())
+      );
+      
+      if (manufacturerVendor) {
+        setVendor(manufacturerVendor.email);
+      }
+    }
+  }, [allowManualVendorSelection, manufacturer, vendors]);
   
   const handleCreateVendor = () => {
     if (!newVendorName || !newVendorEmail) {
@@ -101,6 +163,34 @@ const CreateTicket = () => {
     }
   };
   
+  const validateForm = () => {
+    const errors: Record<string, string> = {};
+    
+    // Common required fields for all service types
+    if (!title) errors.title = "Ticket title is required";
+    if (!vendor) errors.vendor = "Please select a vendor";
+    if (!busNumber) errors.busNumber = "Bus number is required";
+    if (!model) errors.model = "Bus model is required";
+    if (!manufacturer) errors.manufacturer = "Bus manufacturer is required";
+    if (!year) errors.year = "Bus year is required";
+    
+    // Service type specific validations
+    if (shouldShowDescription && !description) {
+      errors.description = "Description is required for repair or other service types";
+    }
+    
+    if (shouldShowIssue && !issue) {
+      errors.issue = "Issue details are required for repair or other service types";
+    }
+    
+    if (shouldShowRepairCategory && !repairCategory) {
+      errors.repairCategory = "Please select a repair category";
+    }
+    
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+  
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -109,20 +199,26 @@ const CreateTicket = () => {
       return;
     }
     
-    // Conditional validation based on service type
-    if (!title || !busNumber || !model || !year || !vendor || !serviceType) {
-      toast.error("Please fill out all required fields");
-      return;
-    }
-    
-    // Validate description and issue for repair and other service types
-    if (shouldShowDescription && !description) {
-      toast.error("Please provide a description for repair or other service types");
-      return;
-    }
-    
-    if (shouldShowIssue && !issue) {
-      toast.error("Please provide issue details for repair or other service types");
+    // Validate form
+    if (!validateForm()) {
+      // Show a more descriptive error with missing fields
+      const missingFields = Object.keys(formErrors).join(', ');
+      toast.error(
+        <div className="flex items-start gap-2">
+          <AlertTriangle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+          <div>
+            <strong>Please check the following fields:</strong>
+            <ul className="list-disc ml-5 mt-1">
+              {Object.entries(formErrors).map(([field, message]) => (
+                <li key={field}>{message}</li>
+              ))}
+            </ul>
+          </div>
+        </div>,
+        {
+          duration: 5000,
+        }
+      );
       return;
     }
     
@@ -133,6 +229,7 @@ const CreateTicket = () => {
       serviceType,
       createdBy: user.email,
       assignedVendor: vendor,
+      repairCategory: repairCategory as RepairCategory || undefined,
       bus: {
         busNumber,
         fleetNumber,
@@ -140,8 +237,14 @@ const CreateTicket = () => {
         registrationNumber,
         route: "", // Empty string as route is no longer needed
         model,
+        manufacturer,
         year,
         issue: shouldShowIssue ? issue : `${serviceType} service`,
+        engineServiceInterval,
+        tyreServiceInterval,
+        acServiceInterval,
+        transmissionServiceInterval,
+        brakePadServiceInterval,
       },
       estimatedCost: estimatedCost ? parseFloat(estimatedCost) : undefined,
     };
@@ -169,14 +272,19 @@ const CreateTicket = () => {
               <div className="space-y-4">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="title">Ticket Title</Label>
+                    <Label htmlFor="title" className={formErrors.title ? "text-red-500" : ""}>
+                      Ticket Title*
+                    </Label>
                     <Input
                       id="title"
                       placeholder="Brief title describing the issue"
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
-                      required
+                      className={formErrors.title ? "border-red-500" : ""}
                     />
+                    {formErrors.title && (
+                      <p className="text-red-500 text-sm">{formErrors.title}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="priority">Priority</Label>
@@ -196,9 +304,11 @@ const CreateTicket = () => {
                 </div>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="serviceType">Service Type</Label>
+                  <Label htmlFor="serviceType" className={formErrors.serviceType ? "text-red-500" : ""}>
+                    Service Type*
+                  </Label>
                   <Select value={serviceType} onValueChange={(value) => setServiceType(value as ServiceType)}>
-                    <SelectTrigger>
+                    <SelectTrigger className={formErrors.serviceType ? "border-red-500" : ""}>
                       <SelectValue placeholder="Select service type" />
                     </SelectTrigger>
                     <SelectContent>
@@ -210,19 +320,58 @@ const CreateTicket = () => {
                       </SelectGroup>
                     </SelectContent>
                   </Select>
+                  {formErrors.serviceType && (
+                    <p className="text-red-500 text-sm">{formErrors.serviceType}</p>
+                  )}
                 </div>
+                
+                {shouldShowRepairCategory && (
+                  <div className="space-y-2">
+                    <Label htmlFor="repairCategory" className={formErrors.repairCategory ? "text-red-500" : ""}>
+                      Repair Category*
+                    </Label>
+                    <Select 
+                      value={repairCategory} 
+                      onValueChange={(value) => setRepairCategory(value as RepairCategory)}
+                      name="repairCategory"
+                    >
+                      <SelectTrigger className={formErrors.repairCategory ? "border-red-500" : ""}>
+                        <SelectValue placeholder="Select repair category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectItem value="electrical">Electrical</SelectItem>
+                          <SelectItem value="mechanical">Mechanical</SelectItem>
+                          <SelectItem value="ac_repair">AC Repair</SelectItem>
+                          <SelectItem value="engine">Engine</SelectItem>
+                          <SelectItem value="body">Body</SelectItem>
+                          <SelectItem value="battery_replacement">Battery Replacement</SelectItem>
+                          <SelectItem value="tyre_replacement">Tyre Replacement</SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                    {formErrors.repairCategory && (
+                      <p className="text-red-500 text-sm">{formErrors.repairCategory}</p>
+                    )}
+                  </div>
+                )}
                 
                 {shouldShowDescription && (
                   <div className="space-y-2">
-                    <Label htmlFor="description">Description</Label>
+                    <Label htmlFor="description" className={formErrors.description ? "text-red-500" : ""}>
+                      Description*
+                    </Label>
                     <Textarea
                       id="description"
                       placeholder="Detailed description of the problem or service needed"
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       rows={4}
-                      required
+                      className={formErrors.description ? "border-red-500" : ""}
                     />
+                    {formErrors.description && (
+                      <p className="text-red-500 text-sm">{formErrors.description}</p>
+                    )}
                   </div>
                 )}
               </div>
@@ -253,14 +402,19 @@ const CreateTicket = () => {
                 
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="bus-number">Bus Number</Label>
+                      <Label htmlFor="bus-number" className={formErrors.busNumber ? "text-red-500" : ""}>
+                        Bus Number*
+                      </Label>
                       <Input
                         id="bus-number"
                         placeholder="Bus identification number"
                         value={busNumber}
                         onChange={(e) => setBusNumber(e.target.value)}
-                        required
+                        className={formErrors.busNumber ? "border-red-500" : ""}
                       />
+                      {formErrors.busNumber && (
+                        <p className="text-red-500 text-sm">{formErrors.busNumber}</p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="fleet-number">Fleet Number</Label>
@@ -296,6 +450,54 @@ const CreateTicket = () => {
                   
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
+                      <Label htmlFor="model" className={formErrors.model ? "text-red-500" : ""}>
+                        Bus Model*
+                      </Label>
+                      <Input
+                        id="model"
+                        placeholder="Model of the bus"
+                        value={model}
+                        onChange={(e) => setModel(e.target.value)}
+                        className={formErrors.model ? "border-red-500" : ""}
+                      />
+                      {formErrors.model && (
+                        <p className="text-red-500 text-sm">{formErrors.model}</p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="manufacturer" className={formErrors.manufacturer ? "text-red-500" : ""}>
+                        Manufacturer*
+                      </Label>
+                      <Input
+                        id="manufacturer"
+                        placeholder="Bus manufacturer"
+                        value={manufacturer}
+                        onChange={(e) => setManufacturer(e.target.value)}
+                        className={formErrors.manufacturer ? "border-red-500" : ""}
+                      />
+                      {formErrors.manufacturer && (
+                        <p className="text-red-500 text-sm">{formErrors.manufacturer}</p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="year" className={formErrors.year ? "text-red-500" : ""}>
+                        Year*
+                      </Label>
+                      <Input
+                        id="year"
+                        placeholder="Year of manufacture"
+                        value={year}
+                        onChange={(e) => setYear(e.target.value)}
+                        className={formErrors.year ? "border-red-500" : ""}
+                      />
+                      {formErrors.year && (
+                        <p className="text-red-500 text-sm">{formErrors.year}</p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
                       <Label htmlFor="estimated-cost">Estimated Cost ($)</Label>
                       <Input
                         id="estimated-cost"
@@ -306,41 +508,90 @@ const CreateTicket = () => {
                         onChange={(e) => setEstimatedCost(e.target.value)}
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="model">Bus Model</Label>
-                      <Input
-                        id="model"
-                        placeholder="Model of the bus"
-                        value={model}
-                        onChange={(e) => setModel(e.target.value)}
-                        required
-                      />
-                    </div>
                   </div>
                   
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {shouldShowIssue && (
                     <div className="space-y-2">
-                      <Label htmlFor="year">Year</Label>
+                      <Label htmlFor="issue" className={formErrors.issue ? "text-red-500" : ""}>
+                        Issue Description*
+                      </Label>
                       <Input
-                        id="year"
-                        placeholder="Year of manufacture"
-                        value={year}
-                        onChange={(e) => setYear(e.target.value)}
-                        required
+                        id="issue"
+                        placeholder="Specific issue with the bus"
+                        value={issue}
+                        onChange={(e) => setIssue(e.target.value)}
+                        className={formErrors.issue ? "border-red-500" : ""}
                       />
+                      {formErrors.issue && (
+                        <p className="text-red-500 text-sm">{formErrors.issue}</p>
+                      )}
                     </div>
-                    {shouldShowIssue && (
+                  )}
+                  
+                  <div className="pt-4 border-t">
+                    <h4 className="text-md font-medium mb-3">Service Intervals (KMS)</h4>
+                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
                       <div className="space-y-2">
-                        <Label htmlFor="issue">Issue Description</Label>
+                        <Label htmlFor="engine-service" className="flex items-center gap-1">
+                          <Wrench className="h-4 w-4" /> Engine
+                        </Label>
                         <Input
-                          id="issue"
-                          placeholder="Specific issue with the bus"
-                          value={issue}
-                          onChange={(e) => setIssue(e.target.value)}
-                          required
+                          id="engine-service"
+                          type="number"
+                          placeholder="Engine service interval"
+                          value={engineServiceInterval || ""}
+                          onChange={(e) => setEngineServiceInterval(parseInt(e.target.value) || 0)}
                         />
                       </div>
-                    )}
+                      <div className="space-y-2">
+                        <Label htmlFor="tyre-service" className="flex items-center gap-1">
+                          <Wrench className="h-4 w-4" /> Tyre
+                        </Label>
+                        <Input
+                          id="tyre-service"
+                          type="number"
+                          placeholder="Tyre service interval"
+                          value={tyreServiceInterval || ""}
+                          onChange={(e) => setTyreServiceInterval(parseInt(e.target.value) || 0)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="ac-service" className="flex items-center gap-1">
+                          <Wrench className="h-4 w-4" /> AC
+                        </Label>
+                        <Input
+                          id="ac-service"
+                          type="number"
+                          placeholder="AC service interval"
+                          value={acServiceInterval || ""}
+                          onChange={(e) => setAcServiceInterval(parseInt(e.target.value) || 0)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="transmission-service" className="flex items-center gap-1">
+                          <Wrench className="h-4 w-4" /> Transmission
+                        </Label>
+                        <Input
+                          id="transmission-service"
+                          type="number"
+                          placeholder="Transmission service interval"
+                          value={transmissionServiceInterval || ""}
+                          onChange={(e) => setTransmissionServiceInterval(parseInt(e.target.value) || 0)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="brakepad-service" className="flex items-center gap-1">
+                          <Wrench className="h-4 w-4" /> Brake Pad
+                        </Label>
+                        <Input
+                          id="brakepad-service"
+                          type="number"
+                          placeholder="Brake pad service interval"
+                          value={brakePadServiceInterval || ""}
+                          onChange={(e) => setBrakePadServiceInterval(parseInt(e.target.value) || 0)}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -350,70 +601,76 @@ const CreateTicket = () => {
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <div className="flex justify-between">
-                      <Label htmlFor="vendor">Assign Vendor</Label>
-                      <Dialog open={showNewVendorDialog} onOpenChange={setShowNewVendorDialog}>
-                        <DialogTrigger asChild>
-                          <Button variant="outline" type="button" size="sm">
-                            + Add New Vendor
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Add New Vendor</DialogTitle>
-                            <DialogDescription>
-                              Enter the details for the new service vendor.
-                            </DialogDescription>
-                          </DialogHeader>
-                          <div className="space-y-4 py-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="new-vendor-name">Vendor Name</Label>
-                              <Input
-                                id="new-vendor-name"
-                                placeholder="Company name"
-                                value={newVendorName}
-                                onChange={(e) => setNewVendorName(e.target.value)}
-                                required
-                              />
+                      <Label htmlFor="vendor" className={formErrors.vendor ? "text-red-500" : ""}>Assign Vendor*</Label>
+                      {allowManualVendorSelection && (
+                        <Dialog open={showNewVendorDialog} onOpenChange={setShowNewVendorDialog}>
+                          <DialogTrigger asChild>
+                            <Button variant="outline" type="button" size="sm">
+                              + Add New Vendor
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Add New Vendor</DialogTitle>
+                              <DialogDescription>
+                                Enter the details for the new service vendor.
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-4 py-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="new-vendor-name">Vendor Name*</Label>
+                                <Input
+                                  id="new-vendor-name"
+                                  placeholder="Company name"
+                                  value={newVendorName}
+                                  onChange={(e) => setNewVendorName(e.target.value)}
+                                  required
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="new-vendor-email">Email*</Label>
+                                <Input
+                                  id="new-vendor-email"
+                                  type="email"
+                                  placeholder="contact@company.com"
+                                  value={newVendorEmail}
+                                  onChange={(e) => setNewVendorEmail(e.target.value)}
+                                  required
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="new-vendor-contact">Contact Person</Label>
+                                <Input
+                                  id="new-vendor-contact"
+                                  placeholder="Full name"
+                                  value={newVendorContact}
+                                  onChange={(e) => setNewVendorContact(e.target.value)}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="new-vendor-phone">Phone Number</Label>
+                                <Input
+                                  id="new-vendor-phone"
+                                  placeholder="(xxx) xxx-xxxx"
+                                  value={newVendorPhone}
+                                  onChange={(e) => setNewVendorPhone(e.target.value)}
+                                />
+                              </div>
                             </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="new-vendor-email">Email</Label>
-                              <Input
-                                id="new-vendor-email"
-                                type="email"
-                                placeholder="contact@company.com"
-                                value={newVendorEmail}
-                                onChange={(e) => setNewVendorEmail(e.target.value)}
-                                required
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="new-vendor-contact">Contact Person</Label>
-                              <Input
-                                id="new-vendor-contact"
-                                placeholder="Full name"
-                                value={newVendorContact}
-                                onChange={(e) => setNewVendorContact(e.target.value)}
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="new-vendor-phone">Phone Number</Label>
-                              <Input
-                                id="new-vendor-phone"
-                                placeholder="(xxx) xxx-xxxx"
-                                value={newVendorPhone}
-                                onChange={(e) => setNewVendorPhone(e.target.value)}
-                              />
-                            </div>
-                          </div>
-                          <DialogFooter>
-                            <Button variant="outline" type="button" onClick={() => setShowNewVendorDialog(false)}>Cancel</Button>
-                            <Button type="button" onClick={handleCreateVendor}>Add Vendor</Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
+                            <DialogFooter>
+                              <Button variant="outline" type="button" onClick={() => setShowNewVendorDialog(false)}>Cancel</Button>
+                              <Button type="button" onClick={handleCreateVendor}>Add Vendor</Button>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
+                      )}
                     </div>
-                    <Select value={vendor} onValueChange={setVendor}>
-                      <SelectTrigger>
+                    <Select 
+                      value={vendor} 
+                      onValueChange={setVendor}
+                      disabled={!allowManualVendorSelection && !!manufacturer}
+                    >
+                      <SelectTrigger className={formErrors.vendor ? "border-red-500" : ""}>
                         <SelectValue placeholder="Select a vendor" />
                       </SelectTrigger>
                       <SelectContent>
@@ -426,6 +683,14 @@ const CreateTicket = () => {
                         </SelectGroup>
                       </SelectContent>
                     </Select>
+                    {formErrors.vendor && (
+                      <p className="text-red-500 text-sm">{formErrors.vendor}</p>
+                    )}
+                    {!allowManualVendorSelection && manufacturer && (
+                      <p className="text-xs text-muted-foreground">
+                        Vendor is automatically selected based on bus manufacturer
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
