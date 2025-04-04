@@ -28,7 +28,7 @@ import {
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { ServiceType, RepairCategory } from "@/types/ticket";
-import { Check, Wrench } from "lucide-react";
+import { Check, Wrench, AlertTriangle } from "lucide-react";
 
 const CreateTicket = () => {
   const { user, vendors, addVendor } = useAuth();
@@ -50,6 +50,20 @@ const CreateTicket = () => {
   const [issue, setIssue] = useState("");
   const [vendor, setVendor] = useState("");
   const [estimatedCost, setEstimatedCost] = useState("");
+  
+  // Form validation states
+  const [formErrors, setFormErrors] = useState<{
+    title?: string;
+    description?: string;
+    serviceType?: string;
+    repairCategory?: string;
+    busNumber?: string;
+    model?: string;
+    manufacturer?: string;
+    year?: string;
+    issue?: string;
+    vendor?: string;
+  }>({});
   
   // Service interval fields
   const [engineServiceInterval, setEngineServiceInterval] = useState<number>(0);
@@ -73,6 +87,11 @@ const CreateTicket = () => {
   const allowManualVendorSelection = 
     serviceType === 'repair' && 
     (repairCategory === 'battery_replacement' || repairCategory === 'tyre_replacement');
+  
+  // Reset errors when changing service type
+  useEffect(() => {
+    setFormErrors({});
+  }, [serviceType]);
   
   const handleBusSelect = (selectedBusNumber: string) => {
     const busPreset = busPresets.find(bus => bus.busNumber === selectedBusNumber);
@@ -144,6 +163,34 @@ const CreateTicket = () => {
     }
   };
   
+  const validateForm = () => {
+    const errors: Record<string, string> = {};
+    
+    // Common required fields for all service types
+    if (!title) errors.title = "Ticket title is required";
+    if (!vendor) errors.vendor = "Please select a vendor";
+    if (!busNumber) errors.busNumber = "Bus number is required";
+    if (!model) errors.model = "Bus model is required";
+    if (!manufacturer) errors.manufacturer = "Bus manufacturer is required";
+    if (!year) errors.year = "Bus year is required";
+    
+    // Service type specific validations
+    if (shouldShowDescription && !description) {
+      errors.description = "Description is required for repair or other service types";
+    }
+    
+    if (shouldShowIssue && !issue) {
+      errors.issue = "Issue details are required for repair or other service types";
+    }
+    
+    if (shouldShowRepairCategory && !repairCategory) {
+      errors.repairCategory = "Please select a repair category";
+    }
+    
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+  
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -152,26 +199,26 @@ const CreateTicket = () => {
       return;
     }
     
-    // Conditional validation based on service type
-    if (!title || !busNumber || !model || !year || !vendor || !serviceType || !manufacturer) {
-      toast.error("Please fill out all required fields");
-      return;
-    }
-    
-    // Validate description and issue for repair and other service types
-    if (shouldShowDescription && !description) {
-      toast.error("Please provide a description for repair or other service types");
-      return;
-    }
-    
-    if (shouldShowIssue && !issue) {
-      toast.error("Please provide issue details for repair or other service types");
-      return;
-    }
-    
-    // Validate repair category for repair service type
-    if (shouldShowRepairCategory && !repairCategory) {
-      toast.error("Please select a repair category");
+    // Validate form
+    if (!validateForm()) {
+      // Show a more descriptive error with missing fields
+      const missingFields = Object.keys(formErrors).join(', ');
+      toast.error(
+        <div className="flex items-start gap-2">
+          <AlertTriangle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+          <div>
+            <strong>Please check the following fields:</strong>
+            <ul className="list-disc ml-5 mt-1">
+              {Object.entries(formErrors).map(([field, message]) => (
+                <li key={field}>{message}</li>
+              ))}
+            </ul>
+          </div>
+        </div>,
+        {
+          duration: 5000,
+        }
+      );
       return;
     }
     
@@ -225,14 +272,19 @@ const CreateTicket = () => {
               <div className="space-y-4">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="title">Ticket Title</Label>
+                    <Label htmlFor="title" className={formErrors.title ? "text-red-500" : ""}>
+                      Ticket Title*
+                    </Label>
                     <Input
                       id="title"
                       placeholder="Brief title describing the issue"
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
-                      required
+                      className={formErrors.title ? "border-red-500" : ""}
                     />
+                    {formErrors.title && (
+                      <p className="text-red-500 text-sm">{formErrors.title}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="priority">Priority</Label>
@@ -252,9 +304,11 @@ const CreateTicket = () => {
                 </div>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="serviceType">Service Type</Label>
+                  <Label htmlFor="serviceType" className={formErrors.serviceType ? "text-red-500" : ""}>
+                    Service Type*
+                  </Label>
                   <Select value={serviceType} onValueChange={(value) => setServiceType(value as ServiceType)}>
-                    <SelectTrigger>
+                    <SelectTrigger className={formErrors.serviceType ? "border-red-500" : ""}>
                       <SelectValue placeholder="Select service type" />
                     </SelectTrigger>
                     <SelectContent>
@@ -266,13 +320,22 @@ const CreateTicket = () => {
                       </SelectGroup>
                     </SelectContent>
                   </Select>
+                  {formErrors.serviceType && (
+                    <p className="text-red-500 text-sm">{formErrors.serviceType}</p>
+                  )}
                 </div>
                 
                 {shouldShowRepairCategory && (
                   <div className="space-y-2">
-                    <Label htmlFor="repairCategory">Repair Category</Label>
-                    <Select value={repairCategory} onValueChange={(value) => setRepairCategory(value as RepairCategory)}>
-                      <SelectTrigger>
+                    <Label htmlFor="repairCategory" className={formErrors.repairCategory ? "text-red-500" : ""}>
+                      Repair Category*
+                    </Label>
+                    <Select 
+                      value={repairCategory} 
+                      onValueChange={(value) => setRepairCategory(value as RepairCategory)}
+                      name="repairCategory"
+                    >
+                      <SelectTrigger className={formErrors.repairCategory ? "border-red-500" : ""}>
                         <SelectValue placeholder="Select repair category" />
                       </SelectTrigger>
                       <SelectContent>
@@ -287,20 +350,28 @@ const CreateTicket = () => {
                         </SelectGroup>
                       </SelectContent>
                     </Select>
+                    {formErrors.repairCategory && (
+                      <p className="text-red-500 text-sm">{formErrors.repairCategory}</p>
+                    )}
                   </div>
                 )}
                 
                 {shouldShowDescription && (
                   <div className="space-y-2">
-                    <Label htmlFor="description">Description</Label>
+                    <Label htmlFor="description" className={formErrors.description ? "text-red-500" : ""}>
+                      Description*
+                    </Label>
                     <Textarea
                       id="description"
                       placeholder="Detailed description of the problem or service needed"
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       rows={4}
-                      required
+                      className={formErrors.description ? "border-red-500" : ""}
                     />
+                    {formErrors.description && (
+                      <p className="text-red-500 text-sm">{formErrors.description}</p>
+                    )}
                   </div>
                 )}
               </div>
@@ -331,14 +402,19 @@ const CreateTicket = () => {
                 
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="bus-number">Bus Number</Label>
+                      <Label htmlFor="bus-number" className={formErrors.busNumber ? "text-red-500" : ""}>
+                        Bus Number*
+                      </Label>
                       <Input
                         id="bus-number"
                         placeholder="Bus identification number"
                         value={busNumber}
                         onChange={(e) => setBusNumber(e.target.value)}
-                        required
+                        className={formErrors.busNumber ? "border-red-500" : ""}
                       />
+                      {formErrors.busNumber && (
+                        <p className="text-red-500 text-sm">{formErrors.busNumber}</p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="fleet-number">Fleet Number</Label>
@@ -374,37 +450,52 @@ const CreateTicket = () => {
                   
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="model">Bus Model</Label>
+                      <Label htmlFor="model" className={formErrors.model ? "text-red-500" : ""}>
+                        Bus Model*
+                      </Label>
                       <Input
                         id="model"
                         placeholder="Model of the bus"
                         value={model}
                         onChange={(e) => setModel(e.target.value)}
-                        required
+                        className={formErrors.model ? "border-red-500" : ""}
                       />
+                      {formErrors.model && (
+                        <p className="text-red-500 text-sm">{formErrors.model}</p>
+                      )}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="manufacturer">Manufacturer</Label>
+                      <Label htmlFor="manufacturer" className={formErrors.manufacturer ? "text-red-500" : ""}>
+                        Manufacturer*
+                      </Label>
                       <Input
                         id="manufacturer"
                         placeholder="Bus manufacturer"
                         value={manufacturer}
                         onChange={(e) => setManufacturer(e.target.value)}
-                        required
+                        className={formErrors.manufacturer ? "border-red-500" : ""}
                       />
+                      {formErrors.manufacturer && (
+                        <p className="text-red-500 text-sm">{formErrors.manufacturer}</p>
+                      )}
                     </div>
                   </div>
                   
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="year">Year</Label>
+                      <Label htmlFor="year" className={formErrors.year ? "text-red-500" : ""}>
+                        Year*
+                      </Label>
                       <Input
                         id="year"
                         placeholder="Year of manufacture"
                         value={year}
                         onChange={(e) => setYear(e.target.value)}
-                        required
+                        className={formErrors.year ? "border-red-500" : ""}
                       />
+                      {formErrors.year && (
+                        <p className="text-red-500 text-sm">{formErrors.year}</p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="estimated-cost">Estimated Cost ($)</Label>
@@ -421,14 +512,19 @@ const CreateTicket = () => {
                   
                   {shouldShowIssue && (
                     <div className="space-y-2">
-                      <Label htmlFor="issue">Issue Description</Label>
+                      <Label htmlFor="issue" className={formErrors.issue ? "text-red-500" : ""}>
+                        Issue Description*
+                      </Label>
                       <Input
                         id="issue"
                         placeholder="Specific issue with the bus"
                         value={issue}
                         onChange={(e) => setIssue(e.target.value)}
-                        required
+                        className={formErrors.issue ? "border-red-500" : ""}
                       />
+                      {formErrors.issue && (
+                        <p className="text-red-500 text-sm">{formErrors.issue}</p>
+                      )}
                     </div>
                   )}
                   
@@ -505,7 +601,7 @@ const CreateTicket = () => {
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <div className="flex justify-between">
-                      <Label htmlFor="vendor">Assign Vendor</Label>
+                      <Label htmlFor="vendor" className={formErrors.vendor ? "text-red-500" : ""}>Assign Vendor*</Label>
                       {allowManualVendorSelection && (
                         <Dialog open={showNewVendorDialog} onOpenChange={setShowNewVendorDialog}>
                           <DialogTrigger asChild>
@@ -522,7 +618,7 @@ const CreateTicket = () => {
                             </DialogHeader>
                             <div className="space-y-4 py-4">
                               <div className="space-y-2">
-                                <Label htmlFor="new-vendor-name">Vendor Name</Label>
+                                <Label htmlFor="new-vendor-name">Vendor Name*</Label>
                                 <Input
                                   id="new-vendor-name"
                                   placeholder="Company name"
@@ -532,7 +628,7 @@ const CreateTicket = () => {
                                 />
                               </div>
                               <div className="space-y-2">
-                                <Label htmlFor="new-vendor-email">Email</Label>
+                                <Label htmlFor="new-vendor-email">Email*</Label>
                                 <Input
                                   id="new-vendor-email"
                                   type="email"
@@ -574,7 +670,7 @@ const CreateTicket = () => {
                       onValueChange={setVendor}
                       disabled={!allowManualVendorSelection && !!manufacturer}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className={formErrors.vendor ? "border-red-500" : ""}>
                         <SelectValue placeholder="Select a vendor" />
                       </SelectTrigger>
                       <SelectContent>
@@ -587,6 +683,9 @@ const CreateTicket = () => {
                         </SelectGroup>
                       </SelectContent>
                     </Select>
+                    {formErrors.vendor && (
+                      <p className="text-red-500 text-sm">{formErrors.vendor}</p>
+                    )}
                     {!allowManualVendorSelection && manufacturer && (
                       <p className="text-xs text-muted-foreground">
                         Vendor is automatically selected based on bus manufacturer
