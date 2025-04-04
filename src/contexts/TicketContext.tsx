@@ -261,7 +261,14 @@ export const TicketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setTickets(
       tickets.map((ticket) => {
         if (ticket.id === id) {
-          return { ...ticket, ...updates, updatedAt: new Date() };
+          const newUpdates = { ...updates };
+          
+          // Handle functional updates for specific fields
+          if (typeof updates.notes === 'function') {
+            newUpdates.notes = updates.notes(ticket);
+          }
+          
+          return { ...ticket, ...newUpdates, updatedAt: new Date() };
         }
         return ticket;
       })
@@ -317,9 +324,14 @@ export const TicketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Reject a ticket
   const rejectTicket = (id: string, reason: string) => {
+    const ticket = getTicket(id);
+    if (!ticket) return;
+    
+    const updatedNotes = [...(ticket.notes || []), `Rejected: ${reason}`];
+    
     updateTicket(id, { 
       status: 'rejected',
-      notes: ticket => [...(ticket.notes || []), `Rejected: ${reason}`]
+      notes: updatedNotes
     });
     toast.error(`Ticket "${id}" rejected`);
   };
