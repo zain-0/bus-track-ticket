@@ -1,4 +1,3 @@
-
 import { useParams, useNavigate } from "react-router-dom";
 import { useTickets } from "@/contexts/TicketContext";
 import MainLayout from "@/components/MainLayout";
@@ -16,7 +15,7 @@ import {
   FileText, 
   Download
 } from "lucide-react";
-import { toast } from "@/components/ui/sonner";
+import { toast } from "sonner";
 
 const PurchaseTicketDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -46,7 +45,6 @@ const PurchaseTicketDetail = () => {
   };
   
   const handleDownloadInvoice = () => {
-    // This would normally download the invoice PDF, but for demo purposes we just show a toast
     toast.info("Invoice download functionality would be implemented here");
   };
   

@@ -1,8 +1,7 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Ticket, TicketStatus, Invoice, RepairRequest } from '@/types/ticket';
 import { useAuth } from './AuthContext';
-import { toast } from '@/components/ui/sonner';
+import { toast } from 'sonner';
 
 // Sample data for tickets
 const DEMO_TICKETS: Ticket[] = [
