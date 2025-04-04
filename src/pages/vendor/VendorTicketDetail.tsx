@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTickets } from '@/contexts/TicketContext';
@@ -84,15 +83,18 @@ const VendorTicketDetail = () => {
         requestRepairWithInvoice(
           id, 
           { 
-            description: repairData.description, 
-            estimatedCost: repairData.estimatedCost 
+            description: repairData.description || "Additional repair needed", 
+            estimatedCost: repairData.estimatedCost || 0
           }, 
-          data
+          {
+            amount: data.amount,
+            description: data.description
+          }
         );
       } else {
         submitInvoice(id, {
           amount: data.amount,
-          description: data.description,
+          description: data.description
         });
       }
       setActiveTab('details');
@@ -106,16 +108,19 @@ const VendorTicketDetail = () => {
         const invoiceData = invoiceForm.getValues();
         requestRepairWithInvoice(
           id, 
-          data, 
+          {
+            description: data.description,
+            estimatedCost: data.estimatedCost
+          }, 
           { 
-            amount: invoiceData.amount, 
-            description: invoiceData.description
+            amount: invoiceData.amount || 0, 
+            description: invoiceData.description || "Invoice for completed work"
           }
         );
       } else {
         requestRepair(id, {
           description: data.description,
-          estimatedCost: data.estimatedCost,
+          estimatedCost: data.estimatedCost
         });
       }
       setActiveTab('details');
@@ -525,7 +530,7 @@ const VendorTicketDetail = () => {
                         </p>
                         {ticket.invoice.paidAt && (
                           <p className="text-sm">
-                            Paid on {ticket.invoice.paidAt.toLocaleString()}
+                            Paid on {ticket.invoice.paidAt.toLocaleDateString()}
                           </p>
                         )}
                       </div>
