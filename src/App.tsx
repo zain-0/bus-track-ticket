@@ -32,6 +32,7 @@ import SupervisorTicketDetail from "./pages/supervisor/SupervisorTicketDetail";
 // Purchase pages
 import PurchaseSummary from "./pages/purchase/PurchaseSummary";
 import PurchaseTicketDetail from "./pages/purchase/PurchaseTicketDetail";
+import PurchaseReports from "./pages/purchase/PurchaseReports";
 
 const queryClient = new QueryClient();
 
@@ -110,6 +111,11 @@ const App = () => (
               <Route path="/purchase/tickets/:id" element={
                 <AuthRequired allowedRoles={["purchase"]}>
                   <PurchaseTicketDetail />
+                </AuthRequired>
+              } />
+              <Route path="/purchase/reports" element={
+                <AuthRequired allowedRoles={["purchase"]}>
+                  <PurchaseReports />
                 </AuthRequired>
               } />
               

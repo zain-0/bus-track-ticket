@@ -5,10 +5,16 @@ export type TicketStatus =
   | 'acknowledged' // Acknowledged by vendor, work in progress
   | 'invoiced' // Vendor has sent an invoice
   | 'repair_requested' // Vendor has requested additional repair approval
+  | 'rejected' // Rejected by supervisor, back to creator
   | 'completed' // All work done, ticket closed
+
+export type ServiceType = 'minor' | 'major' | 'other' | 'repair';
 
 export interface BusDetails {
   busNumber: string;
+  fleetNumber?: string;
+  chassisNumber?: string;
+  registrationNumber?: string;
   route: string;
   model: string;
   year: string;
@@ -31,6 +37,7 @@ export interface Invoice {
   createdAt: Date;
   paidAt?: Date;
   attachmentUrl?: string;
+  fileUpload?: File | null;
 }
 
 export interface Ticket {
@@ -38,6 +45,7 @@ export interface Ticket {
   title: string;
   description: string;
   status: TicketStatus;
+  serviceType: ServiceType;
   priority: 'low' | 'medium' | 'high';
   createdBy: string;
   createdAt: Date;
@@ -52,4 +60,14 @@ export interface Ticket {
   completedAt?: Date;
   estimatedCost?: number;
   finalCost?: number;
+  rejectedReason?: string;
+}
+
+export interface BusPreset {
+  busNumber: string;
+  fleetNumber: string;
+  chassisNumber: string;
+  registrationNumber: string;
+  model: string;
+  year: string;
 }

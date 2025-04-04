@@ -5,16 +5,28 @@ import { useTickets } from "@/contexts/TicketContext";
 import MainLayout from "@/components/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, AlertTriangle, WrenchIcon } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Search, AlertTriangle, WrenchIcon, X } from "lucide-react";
 import { TicketStatusBadge } from "@/components/TicketStatusBadge";
 import { format } from "date-fns";
 
 const SupervisorApprovals = () => {
   const { user } = useAuth();
-  const { tickets, approveTicket, approveRepair } = useTickets();
+  const { tickets, approveTicket, approveRepair, rejectTicket } = useTickets();
   const [searchQuery, setSearchQuery] = useState("");
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [ticketToReject, setTicketToReject] = useState<string | null>(null);
   
   // Filter pending approval tickets
   const pendingApprovalTickets = tickets.filter(
@@ -43,6 +55,14 @@ const SupervisorApprovals = () => {
   
   const handleApproveTicket = (ticketId: string) => {
     approveTicket(ticketId);
+  };
+  
+  const handleRejectTicket = () => {
+    if (!ticketToReject || !rejectionReason) return;
+    
+    rejectTicket(ticketToReject, rejectionReason);
+    setTicketToReject(null);
+    setRejectionReason("");
   };
   
   const handleApproveRepair = (ticketId: string, repairId: string) => {
@@ -96,11 +116,17 @@ const SupervisorApprovals = () => {
                         <div className="flex-1">
                           <h4 className="font-medium mb-1">Description</h4>
                           <p className="text-sm">{ticket.description}</p>
+                          <div className="mt-3">
+                            <h4 className="font-medium mb-1">Service Type</h4>
+                            <p className="text-sm capitalize">{ticket.serviceType || 'Not specified'}</p>
+                          </div>
                         </div>
                         <div className="md:w-1/3 space-y-3">
                           <div>
                             <h4 className="font-medium mb-1">Bus Details</h4>
                             <p className="text-sm">{ticket.bus.busNumber} - {ticket.bus.model}</p>
+                            <p className="text-sm">Fleet: {ticket.bus.fleetNumber || 'N/A'}</p>
+                            <p className="text-sm">Registration: {ticket.bus.registrationNumber || 'N/A'}</p>
                             <p className="text-sm">Issue: {ticket.bus.issue}</p>
                           </div>
                           <div>
@@ -123,7 +149,45 @@ const SupervisorApprovals = () => {
                         <p className="text-sm text-amber-800">This ticket requires your approval.</p>
                       </div>
                     </CardContent>
-                    <CardFooter className="flex justify-end">
+                    <CardFooter className="flex justify-end gap-2">
+                      <Dialog open={ticketToReject === ticket.id} onOpenChange={(open) => {
+                        if (!open) setTicketToReject(null);
+                        if (open) setTicketToReject(ticket.id);
+                      }}>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" className="border-red-200 text-red-600 hover:bg-red-50">
+                            <X className="h-4 w-4 mr-2" />
+                            Reject
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Reject Ticket</DialogTitle>
+                            <DialogDescription>
+                              Please provide a reason for rejection. This will be sent back to the creator.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="py-4">
+                            <Textarea
+                              placeholder="Reason for rejection..."
+                              value={rejectionReason}
+                              onChange={(e) => setRejectionReason(e.target.value)}
+                              rows={4}
+                            />
+                          </div>
+                          <DialogFooter>
+                            <Button variant="outline" onClick={() => setTicketToReject(null)}>Cancel</Button>
+                            <Button 
+                              variant="destructive" 
+                              onClick={handleRejectTicket}
+                              disabled={!rejectionReason.trim()}
+                            >
+                              Reject Ticket
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                      
                       <Button onClick={() => handleApproveTicket(ticket.id)}>
                         Approve Ticket
                       </Button>

@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "react-router-dom";
-import { Bus, Ticket, Users, ClipboardCheck, DollarSign, LogOut, User } from "lucide-react";
+import { Bus, Ticket, Users, ClipboardCheck, DollarSign, LogOut, User, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function AppSidebar() {
@@ -26,7 +26,7 @@ export function AppSidebar() {
     const baseItems = [
       {
         name: "Dashboard",
-        href: "/",
+        href: "/dashboard",
         icon: <Bus className="w-5 h-5 mr-2" />,
         showTo: ['vendor', 'creator', 'supervisor', 'purchase'],
       }
@@ -74,6 +74,12 @@ export function AppSidebar() {
           name: "Financial Summary",
           href: "/purchase/summary",
           icon: <DollarSign className="w-5 h-5 mr-2" />,
+          showTo: ['purchase'],
+        },
+        {
+          name: "Reports",
+          href: "/purchase/reports",
+          icon: <FileText className="w-5 h-5 mr-2" />,
           showTo: ['purchase'],
         },
       ]

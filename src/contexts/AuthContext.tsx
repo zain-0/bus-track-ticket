@@ -13,6 +13,15 @@ interface User {
   role: UserRole;
 }
 
+// Define vendor type
+export interface Vendor {
+  id: string;
+  name: string;
+  email: string;
+  contactPerson?: string;
+  phone?: string;
+}
+
 // Define auth context type
 interface AuthContextType {
   user: User | null;
@@ -20,6 +29,8 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
+  vendors: Vendor[];
+  addVendor: (vendor: Omit<Vendor, 'id'>) => void;
 }
 
 // Create auth context with default values
@@ -29,6 +40,8 @@ const AuthContext = createContext<AuthContextType>({
   login: async () => {},
   logout: () => {},
   isAuthenticated: false,
+  vendors: [],
+  addVendor: () => {},
 });
 
 // Mock users for demo
@@ -59,19 +72,62 @@ const mockUsers: User[] = [
   },
 ];
 
+// Initial vendors
+const initialVendors: Vendor[] = [
+  {
+    id: 'v1',
+    name: 'Prime Bus Services',
+    email: 'vendor@example.com',
+    contactPerson: 'John Smith',
+    phone: '555-123-4567',
+  },
+  {
+    id: 'v2',
+    name: 'City Mechanics Ltd',
+    email: 'city@example.com',
+    contactPerson: 'Mary Johnson',
+    phone: '555-987-6543',
+  }
+];
+
 // Create auth provider component
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
 
-  // Check for stored user on component mount
+  // Check for stored user and vendors on component mount
   useEffect(() => {
     const storedUser = localStorage.getItem('busTicketUser');
+    const storedVendors = localStorage.getItem('busTicketVendors');
+    
     if (storedUser) {
       setUser(JSON.parse(storedUser));
     }
+    
+    if (storedVendors) {
+      setVendors(JSON.parse(storedVendors));
+    } else {
+      setVendors(initialVendors);
+      localStorage.setItem('busTicketVendors', JSON.stringify(initialVendors));
+    }
+    
     setLoading(false);
   }, []);
+
+  // Add vendor function
+  const addVendor = (vendor: Omit<Vendor, 'id'>) => {
+    const newVendor: Vendor = {
+      ...vendor,
+      id: `v${vendors.length + 1}`,
+    };
+    
+    const updatedVendors = [...vendors, newVendor];
+    setVendors(updatedVendors);
+    localStorage.setItem('busTicketVendors', JSON.stringify(updatedVendors));
+    toast.success(`Vendor ${newVendor.name} added successfully`);
+    return newVendor;
+  };
 
   // Login function
   const login = async (email: string, password: string): Promise<void> => {
@@ -106,6 +162,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     login,
     logout,
     isAuthenticated: !!user,
+    vendors,
+    addVendor,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,5 +1,6 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Ticket, TicketStatus, Invoice, RepairRequest } from '@/types/ticket';
+import { Ticket, TicketStatus, Invoice, RepairRequest, ServiceType } from '@/types/ticket';
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
 
@@ -10,12 +11,16 @@ const DEMO_TICKETS: Ticket[] = [
     title: 'Engine Overheating',
     description: 'Bus engine overheating during long routes',
     status: 'pending',
+    serviceType: 'major',
     priority: 'high',
     createdBy: 'creator@example.com',
     createdAt: new Date('2025-03-15T10:30:00'),
     assignedVendor: 'vendor@example.com',
     bus: {
       busNumber: 'B12345',
+      fleetNumber: 'F001',
+      chassisNumber: 'CH78901',
+      registrationNumber: 'REG-001',
       route: 'Downtown - Airport',
       model: 'Mercedes Citaro',
       year: '2020',
@@ -158,17 +163,51 @@ const DEMO_TICKETS: Ticket[] = [
   }
 ];
 
+// Sample bus presets
+export const BUS_PRESETS = [
+  {
+    busNumber: 'B12345',
+    fleetNumber: 'F001',
+    chassisNumber: 'CH78901',
+    registrationNumber: 'REG-001',
+    model: 'Mercedes Citaro',
+    year: '2020'
+  },
+  {
+    busNumber: 'B45678',
+    fleetNumber: 'F002',
+    chassisNumber: 'CH45612',
+    registrationNumber: 'REG-002',
+    model: 'Volvo 7900',
+    year: '2019'
+  },
+  {
+    busNumber: 'B78901',
+    fleetNumber: 'F003',
+    chassisNumber: 'CH12345',
+    registrationNumber: 'REG-003',
+    model: 'MAN Lion\'s City',
+    year: '2021'
+  }
+];
+
 interface TicketContextType {
   tickets: Ticket[];
   addTicket: (ticket: Omit<Ticket, 'id' | 'createdAt' | 'status'>) => void;
   updateTicketStatus: (ticketId: string, status: TicketStatus) => void;
   approveTicket: (ticketId: string) => void;
+  rejectTicket: (ticketId: string, reason: string) => void;
   acknowledgeTicket: (ticketId: string) => void;
   submitInvoice: (ticketId: string, invoice: Omit<Invoice, 'id' | 'createdAt'>) => void;
   requestRepair: (ticketId: string, repairRequest: Omit<RepairRequest, 'id' | 'approved'>) => void;
   approveRepair: (ticketId: string, repairId: string) => void;
   completeTicket: (ticketId: string) => void;
   getTicketById: (id: string) => Ticket | undefined;
+  addNote: (ticketId: string, note: string) => void;
+  getTicketsByDate: (startDate: Date, endDate: Date) => Ticket[];
+  getTicketsByVendor: (vendorEmail: string) => Ticket[];
+  getTicketsByBus: (busNumber: string) => Ticket[];
+  getBusPresets: () => typeof BUS_PRESETS;
 }
 
 const TicketContext = createContext<TicketContextType>({
@@ -176,12 +215,18 @@ const TicketContext = createContext<TicketContextType>({
   addTicket: () => {},
   updateTicketStatus: () => {},
   approveTicket: () => {},
+  rejectTicket: () => {},
   acknowledgeTicket: () => {},
   submitInvoice: () => {},
   requestRepair: () => {},
   approveRepair: () => {},
   completeTicket: () => {},
   getTicketById: () => undefined,
+  addNote: () => {},
+  getTicketsByDate: () => [],
+  getTicketsByVendor: () => [],
+  getTicketsByBus: () => [],
+  getBusPresets: () => BUS_PRESETS,
 });
 
 export const TicketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -263,6 +308,27 @@ export const TicketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     toast.success('Ticket approved successfully');
   };
 
+  // Reject ticket (supervisor only)
+  const rejectTicket = (ticketId: string, reason: string) => {
+    if (!user || user.role !== 'supervisor') {
+      toast.error('Only supervisors can reject tickets');
+      return;
+    }
+
+    setTickets((prev) =>
+      prev.map((ticket) =>
+        ticket.id === ticketId
+          ? {
+              ...ticket,
+              status: 'rejected',
+              rejectedReason: reason
+            }
+          : ticket
+      )
+    );
+    toast.warning('Ticket rejected - returned to creator');
+  };
+
   // Acknowledge ticket (vendor only)
   const acknowledgeTicket = (ticketId: string) => {
     if (!user || user.role !== 'vendor') {
@@ -282,6 +348,17 @@ export const TicketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       )
     );
     toast.success('Ticket acknowledged successfully');
+    
+    // Get details of the ticket for notification
+    const acknowledgedTicket = tickets.find(t => t.id === ticketId);
+    if (acknowledgedTicket) {
+      // In a real app, this would send actual notifications
+      // Here we're just showing toast messages for demo
+      toast.info(`Notification sent to ticket creator: ${acknowledgedTicket.createdBy}`);
+      if (acknowledgedTicket.approvedBy) {
+        toast.info(`Notification sent to supervisor: ${acknowledgedTicket.approvedBy}`);
+      }
+    }
   };
 
   // Submit invoice (vendor only)
@@ -310,6 +387,13 @@ export const TicketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       )
     );
     toast.success('Invoice submitted successfully');
+    
+    // Notification for invoice submission
+    const ticketWithInvoice = tickets.find(t => t.id === ticketId);
+    if (ticketWithInvoice) {
+      toast.info(`Notification sent to creator: ${ticketWithInvoice.createdBy}`);
+      toast.info(`Notification sent to purchase department`);
+    }
   };
 
   // Request repair (vendor only)
@@ -339,6 +423,12 @@ export const TicketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       })
     );
     toast.success('Repair request submitted successfully');
+    
+    // Notification for repair request
+    const ticketWithRepairRequest = tickets.find(t => t.id === ticketId);
+    if (ticketWithRepairRequest && ticketWithRepairRequest.approvedBy) {
+      toast.info(`Notification sent to supervisor: ${ticketWithRepairRequest.approvedBy}`);
+    }
   };
 
   // Approve repair (supervisor only)
@@ -370,6 +460,26 @@ export const TicketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       })
     );
     toast.success('Repair request approved');
+    
+    // Create a new ticket for the approved repair
+    const originalTicket = tickets.find(t => t.id === ticketId);
+    const approvedRepair = originalTicket?.repairRequests?.find(r => r.id === repairId);
+    
+    if (originalTicket && approvedRepair) {
+      const repairTicket: Omit<Ticket, 'id' | 'createdAt' | 'status'> = {
+        title: `Repair for ${originalTicket.title}`,
+        description: approvedRepair.description,
+        serviceType: 'repair',
+        priority: originalTicket.priority,
+        createdBy: user.email,
+        assignedVendor: originalTicket.assignedVendor,
+        bus: originalTicket.bus,
+        estimatedCost: approvedRepair.estimatedCost,
+      };
+      
+      addTicket(repairTicket);
+      toast.info(`New repair ticket created from request ${repairId}`);
+    }
   };
 
   // Complete ticket
@@ -388,22 +498,67 @@ export const TicketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     toast.success('Ticket marked as completed');
   };
 
+  // Add note to ticket
+  const addNote = (ticketId: string, note: string) => {
+    if (!note.trim()) return;
+    
+    setTickets((prev) =>
+      prev.map((ticket) => {
+        if (ticket.id === ticketId) {
+          const currentNotes = ticket.notes || [];
+          return {
+            ...ticket,
+            notes: [...currentNotes, note]
+          };
+        }
+        return ticket;
+      })
+    );
+    toast.success('Note added to ticket');
+  };
+
   // Get ticket by ID
   const getTicketById = (id: string) => {
     return tickets.find((ticket) => ticket.id === id);
   };
+  
+  // Filter tickets by date range
+  const getTicketsByDate = (startDate: Date, endDate: Date) => {
+    return tickets.filter(ticket => {
+      return ticket.createdAt >= startDate && ticket.createdAt <= endDate;
+    });
+  };
+  
+  // Filter tickets by vendor
+  const getTicketsByVendor = (vendorEmail: string) => {
+    return tickets.filter(ticket => ticket.assignedVendor === vendorEmail);
+  };
+  
+  // Filter tickets by bus
+  const getTicketsByBus = (busNumber: string) => {
+    return tickets.filter(ticket => ticket.bus.busNumber === busNumber);
+  };
+  
+  // Get bus presets
+  const getBusPresets = () => BUS_PRESETS;
 
   const value = {
     tickets,
     addTicket,
     updateTicketStatus,
     approveTicket,
+    rejectTicket,
     acknowledgeTicket,
     submitInvoice,
     requestRepair,
     approveRepair,
     completeTicket,
-    getTicketById
+    getTicketById,
+    addNote,
+    getTicketsByDate,
+    getTicketsByVendor,
+    getTicketsByBus,
+    getBusPresets
   };
 
   return <TicketContext.Provider value={value}>{children}</TicketContext.Provider>;
