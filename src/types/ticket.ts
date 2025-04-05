@@ -14,15 +14,6 @@ export type TicketStatus =
 
 export type ServiceType = 'minor' | 'major' | 'other' | 'repair';
 
-export type RepairCategory = 
-  | 'electrical' 
-  | 'mechanical' 
-  | 'ac_repair' 
-  | 'engine' 
-  | 'body'
-  | 'battery_replacement'
-  | 'tyre_replacement';
-
 export interface BusDetails {
   busNumber: string;
   fleetNumber?: string;
@@ -30,14 +21,8 @@ export interface BusDetails {
   registrationNumber?: string;
   route: string;
   model: string;
-  manufacturer: string; // Added manufacturer
   year: string;
   issue: string;
-  engineServiceInterval?: number;
-  tyreServiceInterval?: number;
-  acServiceInterval?: number;
-  transmissionServiceInterval?: number;
-  brakePadServiceInterval?: number;
 }
 
 export interface RepairRequest {
@@ -47,7 +32,6 @@ export interface RepairRequest {
   approved: boolean;
   approvedBy?: string;
   approvedAt?: Date;
-  category?: RepairCategory;
 }
 
 export interface Invoice {
@@ -58,8 +42,6 @@ export interface Invoice {
   paidAt?: Date;
   attachmentUrl?: string;
   fileUpload?: File | null;
-  pdfLink?: string;
-  uploadedAt?: Date;
 }
 
 export interface Quotation {
@@ -97,7 +79,6 @@ export interface Ticket {
   finalCost?: number;
   rejectedReason?: string;
   underServiceAt?: Date;
-  repairCategory?: RepairCategory;
 }
 
 export interface BusPreset {
@@ -106,11 +87,5 @@ export interface BusPreset {
   chassisNumber: string;
   registrationNumber: string;
   model: string;
-  manufacturer: string; // Added manufacturer
   year: string;
-  engineServiceInterval: number;
-  tyreServiceInterval: number;
-  acServiceInterval: number;
-  transmissionServiceInterval: number;
-  brakePadServiceInterval: number;
 }
