@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTickets } from "@/contexts/TicketContext";
@@ -60,6 +59,7 @@ const SupervisorApprovals = () => {
   const handleRejectTicket = () => {
     if (!ticketToReject || !rejectionReason) return;
     
+    // Pass both the ticket ID and rejection reason
     rejectTicket(ticketToReject, rejectionReason);
     setTicketToReject(null);
     setRejectionReason("");

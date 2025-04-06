@@ -12,6 +12,26 @@ export function TicketStatusBadge({ status }: TicketStatusBadgeProps) {
     TicketStatus,
     { label: string; className: string }
   > = {
+    open: {
+      label: "Open",
+      className: "bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200",
+    },
+    in_progress: {
+      label: "In Progress",
+      className: "bg-blue-100 text-blue-700 border-blue-300 hover:bg-blue-200",
+    },
+    on_hold: {
+      label: "On Hold",
+      className: "bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200",
+    },
+    resolved: {
+      label: "Resolved",
+      className: "bg-green-100 text-green-800 border-green-300 hover:bg-green-200",
+    },
+    closed: {
+      label: "Closed",
+      className: "bg-gray-100 text-gray-800 border-gray-300 hover:bg-gray-200",
+    },
     pending: {
       label: "Pending Approval",
       className: "bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200",
@@ -56,6 +76,10 @@ export function TicketStatusBadge({ status }: TicketStatusBadgeProps) {
       label: "Rejected",
       className: "bg-red-100 text-red-800 border-red-300 hover:bg-red-200",
     },
+    pending_vendor: {
+      label: "Pending Vendor",
+      className: "bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200",
+    }
   };
 
   const config = statusConfig[status];
