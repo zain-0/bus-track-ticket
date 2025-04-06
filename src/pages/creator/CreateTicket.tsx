@@ -27,8 +27,8 @@ import {
 } from "@/components/ui/dialog";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { ServiceType, RepairCategory } from "@/types/ticket";
-import { Check, Wrench, Engine, Tire, Thermometer, Transmission, Disc } from "lucide-react";
+import { ServiceType } from "@/types/ticket";
+import { Check, Wrench } from "lucide-react";
 
 const CreateTicket = () => {
   const { user, vendors, addVendor } = useAuth();
@@ -39,24 +39,15 @@ const CreateTicket = () => {
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<"low" | "medium" | "high">("medium");
   const [serviceType, setServiceType] = useState<ServiceType>("minor");
-  const [repairCategory, setRepairCategory] = useState<RepairCategory | "">("");
   const [busNumber, setBusNumber] = useState("");
   const [fleetNumber, setFleetNumber] = useState("");
   const [chassisNumber, setChassisNumber] = useState("");
   const [registrationNumber, setRegistrationNumber] = useState("");
   const [model, setModel] = useState("");
-  const [manufacturer, setManufacturer] = useState("");
   const [year, setYear] = useState("");
   const [issue, setIssue] = useState("");
   const [vendor, setVendor] = useState("");
   const [estimatedCost, setEstimatedCost] = useState("");
-  
-  // Service interval fields
-  const [engineServiceInterval, setEngineServiceInterval] = useState<number>(0);
-  const [tyreServiceInterval, setTyreServiceInterval] = useState<number>(0);
-  const [acServiceInterval, setAcServiceInterval] = useState<number>(0);
-  const [transmissionServiceInterval, setTransmissionServiceInterval] = useState<number>(0);
-  const [brakePadServiceInterval, setBrakePadServiceInterval] = useState<number>(0);
   
   const [showNewVendorDialog, setShowNewVendorDialog] = useState(false);
   const [newVendorName, setNewVendorName] = useState("");
@@ -69,10 +60,6 @@ const CreateTicket = () => {
   // Determine if description and issue fields should be displayed
   const shouldShowDescription = serviceType === 'repair' || serviceType === 'other';
   const shouldShowIssue = serviceType === 'repair' || serviceType === 'other';
-  const shouldShowRepairCategory = serviceType === 'repair';
-  const allowManualVendorSelection = 
-    serviceType === 'repair' && 
-    (repairCategory === 'battery_replacement' || repairCategory === 'tyre_replacement');
   
   const handleBusSelect = (selectedBusNumber: string) => {
     const busPreset = busPresets.find(bus => bus.busNumber === selectedBusNumber);
@@ -82,39 +69,9 @@ const CreateTicket = () => {
       setChassisNumber(busPreset.chassisNumber);
       setRegistrationNumber(busPreset.registrationNumber);
       setModel(busPreset.model);
-      setManufacturer(busPreset.manufacturer);
       setYear(busPreset.year);
-      setEngineServiceInterval(busPreset.engineServiceInterval);
-      setTyreServiceInterval(busPreset.tyreServiceInterval);
-      setAcServiceInterval(busPreset.acServiceInterval);
-      setTransmissionServiceInterval(busPreset.transmissionServiceInterval);
-      setBrakePadServiceInterval(busPreset.brakePadServiceInterval);
-      
-      // Auto-select vendor based on manufacturer if applicable
-      if (!allowManualVendorSelection && busPreset.manufacturer) {
-        const manufacturerVendor = vendors.find(v => 
-          v.name.toLowerCase().includes(busPreset.manufacturer.toLowerCase())
-        );
-        
-        if (manufacturerVendor) {
-          setVendor(manufacturerVendor.email);
-        }
-      }
     }
   };
-  
-  useEffect(() => {
-    // Reset vendor if manual selection becomes allowed/disallowed
-    if (!allowManualVendorSelection && manufacturer) {
-      const manufacturerVendor = vendors.find(v => 
-        v.name.toLowerCase().includes(manufacturer.toLowerCase())
-      );
-      
-      if (manufacturerVendor) {
-        setVendor(manufacturerVendor.email);
-      }
-    }
-  }, [allowManualVendorSelection, manufacturer, vendors]);
   
   const handleCreateVendor = () => {
     if (!newVendorName || !newVendorEmail) {
@@ -153,7 +110,7 @@ const CreateTicket = () => {
     }
     
     // Conditional validation based on service type
-    if (!title || !busNumber || !model || !year || !vendor || !serviceType || !manufacturer) {
+    if (!title || !busNumber || !model || !year || !vendor || !serviceType) {
       toast.error("Please fill out all required fields");
       return;
     }
@@ -169,12 +126,6 @@ const CreateTicket = () => {
       return;
     }
     
-    // Validate repair category for repair service type
-    if (shouldShowRepairCategory && !repairCategory) {
-      toast.error("Please select a repair category");
-      return;
-    }
-    
     const newTicket = {
       title,
       description: shouldShowDescription ? description : `${serviceType} service for bus ${busNumber}`,
@@ -182,7 +133,6 @@ const CreateTicket = () => {
       serviceType,
       createdBy: user.email,
       assignedVendor: vendor,
-      repairCategory: repairCategory as RepairCategory || undefined,
       bus: {
         busNumber,
         fleetNumber,
@@ -190,14 +140,8 @@ const CreateTicket = () => {
         registrationNumber,
         route: "", // Empty string as route is no longer needed
         model,
-        manufacturer,
         year,
         issue: shouldShowIssue ? issue : `${serviceType} service`,
-        engineServiceInterval,
-        tyreServiceInterval,
-        acServiceInterval,
-        transmissionServiceInterval,
-        brakePadServiceInterval,
       },
       estimatedCost: estimatedCost ? parseFloat(estimatedCost) : undefined,
     };
@@ -267,28 +211,6 @@ const CreateTicket = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                
-                {shouldShowRepairCategory && (
-                  <div className="space-y-2">
-                    <Label htmlFor="repairCategory">Repair Category</Label>
-                    <Select value={repairCategory} onValueChange={(value) => setRepairCategory(value as RepairCategory)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select repair category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          <SelectItem value="electrical">Electrical</SelectItem>
-                          <SelectItem value="mechanical">Mechanical</SelectItem>
-                          <SelectItem value="ac_repair">AC Repair</SelectItem>
-                          <SelectItem value="engine">Engine</SelectItem>
-                          <SelectItem value="body">Body</SelectItem>
-                          <SelectItem value="battery_replacement">Battery Replacement</SelectItem>
-                          <SelectItem value="tyre_replacement">Tyre Replacement</SelectItem>
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
                 
                 {shouldShowDescription && (
                   <div className="space-y-2">
@@ -374,22 +296,23 @@ const CreateTicket = () => {
                   
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
+                      <Label htmlFor="estimated-cost">Estimated Cost ($)</Label>
+                      <Input
+                        id="estimated-cost"
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00 (optional)"
+                        value={estimatedCost}
+                        onChange={(e) => setEstimatedCost(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
                       <Label htmlFor="model">Bus Model</Label>
                       <Input
                         id="model"
                         placeholder="Model of the bus"
                         value={model}
                         onChange={(e) => setModel(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="manufacturer">Manufacturer</Label>
-                      <Input
-                        id="manufacturer"
-                        placeholder="Bus manufacturer"
-                        value={manufacturer}
-                        onChange={(e) => setManufacturer(e.target.value)}
                         required
                       />
                     </div>
@@ -406,96 +329,18 @@ const CreateTicket = () => {
                         required
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="estimated-cost">Estimated Cost ($)</Label>
-                      <Input
-                        id="estimated-cost"
-                        type="number"
-                        step="0.01"
-                        placeholder="0.00 (optional)"
-                        value={estimatedCost}
-                        onChange={(e) => setEstimatedCost(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  
-                  {shouldShowIssue && (
-                    <div className="space-y-2">
-                      <Label htmlFor="issue">Issue Description</Label>
-                      <Input
-                        id="issue"
-                        placeholder="Specific issue with the bus"
-                        value={issue}
-                        onChange={(e) => setIssue(e.target.value)}
-                        required
-                      />
-                    </div>
-                  )}
-                  
-                  <div className="pt-4 border-t">
-                    <h4 className="text-md font-medium mb-3">Service Intervals (KMS)</h4>
-                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                    {shouldShowIssue && (
                       <div className="space-y-2">
-                        <Label htmlFor="engine-service" className="flex items-center gap-1">
-                          <Engine className="h-4 w-4" /> Engine
-                        </Label>
+                        <Label htmlFor="issue">Issue Description</Label>
                         <Input
-                          id="engine-service"
-                          type="number"
-                          placeholder="Engine service interval"
-                          value={engineServiceInterval || ""}
-                          onChange={(e) => setEngineServiceInterval(parseInt(e.target.value) || 0)}
+                          id="issue"
+                          placeholder="Specific issue with the bus"
+                          value={issue}
+                          onChange={(e) => setIssue(e.target.value)}
+                          required
                         />
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="tyre-service" className="flex items-center gap-1">
-                          <Tire className="h-4 w-4" /> Tyre
-                        </Label>
-                        <Input
-                          id="tyre-service"
-                          type="number"
-                          placeholder="Tyre service interval"
-                          value={tyreServiceInterval || ""}
-                          onChange={(e) => setTyreServiceInterval(parseInt(e.target.value) || 0)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="ac-service" className="flex items-center gap-1">
-                          <Thermometer className="h-4 w-4" /> AC
-                        </Label>
-                        <Input
-                          id="ac-service"
-                          type="number"
-                          placeholder="AC service interval"
-                          value={acServiceInterval || ""}
-                          onChange={(e) => setAcServiceInterval(parseInt(e.target.value) || 0)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="transmission-service" className="flex items-center gap-1">
-                          <Transmission className="h-4 w-4" /> Transmission
-                        </Label>
-                        <Input
-                          id="transmission-service"
-                          type="number"
-                          placeholder="Transmission service interval"
-                          value={transmissionServiceInterval || ""}
-                          onChange={(e) => setTransmissionServiceInterval(parseInt(e.target.value) || 0)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="brakepad-service" className="flex items-center gap-1">
-                          <Disc className="h-4 w-4" /> Brake Pad
-                        </Label>
-                        <Input
-                          id="brakepad-service"
-                          type="number"
-                          placeholder="Brake pad service interval"
-                          value={brakePadServiceInterval || ""}
-                          onChange={(e) => setBrakePadServiceInterval(parseInt(e.target.value) || 0)}
-                        />
-                      </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -506,74 +351,68 @@ const CreateTicket = () => {
                   <div className="space-y-2">
                     <div className="flex justify-between">
                       <Label htmlFor="vendor">Assign Vendor</Label>
-                      {allowManualVendorSelection && (
-                        <Dialog open={showNewVendorDialog} onOpenChange={setShowNewVendorDialog}>
-                          <DialogTrigger asChild>
-                            <Button variant="outline" type="button" size="sm">
-                              + Add New Vendor
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle>Add New Vendor</DialogTitle>
-                              <DialogDescription>
-                                Enter the details for the new service vendor.
-                              </DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-4 py-4">
-                              <div className="space-y-2">
-                                <Label htmlFor="new-vendor-name">Vendor Name</Label>
-                                <Input
-                                  id="new-vendor-name"
-                                  placeholder="Company name"
-                                  value={newVendorName}
-                                  onChange={(e) => setNewVendorName(e.target.value)}
-                                  required
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor="new-vendor-email">Email</Label>
-                                <Input
-                                  id="new-vendor-email"
-                                  type="email"
-                                  placeholder="contact@company.com"
-                                  value={newVendorEmail}
-                                  onChange={(e) => setNewVendorEmail(e.target.value)}
-                                  required
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor="new-vendor-contact">Contact Person</Label>
-                                <Input
-                                  id="new-vendor-contact"
-                                  placeholder="Full name"
-                                  value={newVendorContact}
-                                  onChange={(e) => setNewVendorContact(e.target.value)}
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor="new-vendor-phone">Phone Number</Label>
-                                <Input
-                                  id="new-vendor-phone"
-                                  placeholder="(xxx) xxx-xxxx"
-                                  value={newVendorPhone}
-                                  onChange={(e) => setNewVendorPhone(e.target.value)}
-                                />
-                              </div>
+                      <Dialog open={showNewVendorDialog} onOpenChange={setShowNewVendorDialog}>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" type="button" size="sm">
+                            + Add New Vendor
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Add New Vendor</DialogTitle>
+                            <DialogDescription>
+                              Enter the details for the new service vendor.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-4 py-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="new-vendor-name">Vendor Name</Label>
+                              <Input
+                                id="new-vendor-name"
+                                placeholder="Company name"
+                                value={newVendorName}
+                                onChange={(e) => setNewVendorName(e.target.value)}
+                                required
+                              />
                             </div>
-                            <DialogFooter>
-                              <Button variant="outline" type="button" onClick={() => setShowNewVendorDialog(false)}>Cancel</Button>
-                              <Button type="button" onClick={handleCreateVendor}>Add Vendor</Button>
-                            </DialogFooter>
-                          </DialogContent>
-                        </Dialog>
-                      )}
+                            <div className="space-y-2">
+                              <Label htmlFor="new-vendor-email">Email</Label>
+                              <Input
+                                id="new-vendor-email"
+                                type="email"
+                                placeholder="contact@company.com"
+                                value={newVendorEmail}
+                                onChange={(e) => setNewVendorEmail(e.target.value)}
+                                required
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="new-vendor-contact">Contact Person</Label>
+                              <Input
+                                id="new-vendor-contact"
+                                placeholder="Full name"
+                                value={newVendorContact}
+                                onChange={(e) => setNewVendorContact(e.target.value)}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="new-vendor-phone">Phone Number</Label>
+                              <Input
+                                id="new-vendor-phone"
+                                placeholder="(xxx) xxx-xxxx"
+                                value={newVendorPhone}
+                                onChange={(e) => setNewVendorPhone(e.target.value)}
+                              />
+                            </div>
+                          </div>
+                          <DialogFooter>
+                            <Button variant="outline" type="button" onClick={() => setShowNewVendorDialog(false)}>Cancel</Button>
+                            <Button type="button" onClick={handleCreateVendor}>Add Vendor</Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
                     </div>
-                    <Select 
-                      value={vendor} 
-                      onValueChange={setVendor}
-                      disabled={!allowManualVendorSelection && !!manufacturer}
-                    >
+                    <Select value={vendor} onValueChange={setVendor}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a vendor" />
                       </SelectTrigger>
@@ -587,11 +426,6 @@ const CreateTicket = () => {
                         </SelectGroup>
                       </SelectContent>
                     </Select>
-                    {!allowManualVendorSelection && manufacturer && (
-                      <p className="text-xs text-muted-foreground">
-                        Vendor is automatically selected based on bus manufacturer
-                      </p>
-                    )}
                   </div>
                 </div>
               </div>
