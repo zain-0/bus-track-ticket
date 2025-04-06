@@ -88,15 +88,13 @@ const VendorTicketDetail = () => {
           }, 
           {
             amount: data.amount,
-            description: data.description,
-            createdAt: new Date()
+            description: data.description
           }
         );
       } else {
         submitInvoice(id, {
           amount: data.amount,
-          description: data.description,
-          createdAt: new Date()
+          description: data.description
         });
       }
       setActiveTab('details');
@@ -116,8 +114,7 @@ const VendorTicketDetail = () => {
           }, 
           { 
             amount: invoiceData.amount || 0, 
-            description: invoiceData.description || "Invoice for completed work",
-            createdAt: new Date()
+            description: invoiceData.description || "Invoice for completed work"
           }
         );
       } else {
@@ -511,9 +508,9 @@ const VendorTicketDetail = () => {
                         {repair.approved && (
                           <>
                             <p className="text-sm text-muted-foreground">
-                              Approved
+                              Approved on {repair.approvedAt?.toLocaleString()}
                             </p>
-                            <p className="text-sm">{repair.approvedBy && `Approved by ${repair.approvedBy}`}</p>
+                            <p className="text-sm">Approved by {repair.approvedBy}</p>
                           </>
                         )}
                       </div>

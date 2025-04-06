@@ -1,3 +1,4 @@
+
 import { useParams, useNavigate } from "react-router-dom";
 import { useTickets } from "@/contexts/TicketContext";
 import MainLayout from "@/components/MainLayout";
@@ -381,6 +382,7 @@ const SupervisorTicketDetail = () => {
   );
 };
 
+// Small check component for status timeline
 const Check = ({ isActive }: { isActive: boolean }) => {
   return isActive ? (
     <CheckCheck className="h-3 w-3 text-green-600" />
